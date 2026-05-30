@@ -53,6 +53,9 @@ import { useUpdateOption } from '../hooks/use-update-option'
  * flattened back to dotted server keys only when persisting.
  */
 const oauthSchema = z.object({
+  GoogleOAuthEnabled: z.boolean(),
+  GoogleClientId: z.string(),
+  GoogleClientSecret: z.string(),
   GitHubOAuthEnabled: z.boolean(),
   GitHubClientId: z.string(),
   GitHubClientSecret: z.string(),
@@ -86,6 +89,9 @@ const oauthSchema = z.object({
 type OAuthFormValues = z.infer<typeof oauthSchema>
 
 type FlatOAuthDefaults = {
+  GoogleOAuthEnabled: boolean
+  GoogleClientId: string
+  GoogleClientSecret: string
   GitHubOAuthEnabled: boolean
   GitHubClientId: string
   GitHubClientSecret: string
@@ -113,9 +119,12 @@ type FlatOAuthDefaults = {
 }
 
 const oauthTabContentClassName =
-  'grid min-w-0 gap-x-5 gap-y-6 lg:grid-cols-2 [&>[data-slot=form-item]]:min-w-0 lg:[&>[data-slot=form-item]:has([data-slot=switch])]:col-span-2'
+  'grid min-w-0 gap-y-6 [&>[data-slot=form-item]]:min-w-0'
 
 const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
+  GoogleOAuthEnabled: defaults.GoogleOAuthEnabled,
+  GoogleClientId: defaults.GoogleClientId ?? '',
+  GoogleClientSecret: defaults.GoogleClientSecret ?? '',
   GitHubOAuthEnabled: defaults.GitHubOAuthEnabled,
   GitHubClientId: defaults.GitHubClientId ?? '',
   GitHubClientSecret: defaults.GitHubClientSecret ?? '',
@@ -147,6 +156,9 @@ const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
 })
 
 const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
+  GoogleOAuthEnabled: values.GoogleOAuthEnabled,
+  GoogleClientId: values.GoogleClientId,
+  GoogleClientSecret: values.GoogleClientSecret,
   GitHubOAuthEnabled: values.GitHubOAuthEnabled,
   GitHubClientId: values.GitHubClientId,
   GitHubClientSecret: values.GitHubClientSecret,
@@ -180,7 +192,7 @@ type OAuthSectionProps = {
 export function OAuthSection(props: OAuthSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
-  const [activeTab, setActiveTab] = useState('github')
+  const [activeTab, setActiveTab] = useState('google')
 
   const formDefaults = useMemo(
     () => buildFormDefaults(props.defaultValues),
@@ -255,13 +267,19 @@ export function OAuthSection(props: OAuthSectionProps) {
     const changedKeys = (
       Object.keys(normalized) as Array<keyof FlatOAuthDefaults>
     ).filter((key) => normalized[key] !== baselineRef.current[key])
+    const orderedChangedKeys = [...changedKeys].sort((a, b) => {
+      const aIsEnableKey = String(a).endsWith('Enabled')
+      const bIsEnableKey = String(b).endsWith('Enabled')
+      if (aIsEnableKey === bIsEnableKey) return 0
+      return aIsEnableKey ? 1 : -1
+    })
 
     if (changedKeys.length === 0) {
       toast.info(t('No changes to save'))
       return
     }
 
-    for (const key of changedKeys) {
+    for (const key of orderedChangedKeys) {
       await updateOption.mutateAsync({
         key,
         value: normalized[key],
@@ -294,7 +312,8 @@ export function OAuthSection(props: OAuthSectionProps) {
             <FormDirtyIndicator isDirty={form.formState.isDirty} />
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className='grid w-full grid-cols-6'>
+              <TabsList className='grid w-full grid-cols-2 sm:grid-cols-4 lg:grid-cols-7'>
+                <TabsTrigger value='google'>{t('Google')}</TabsTrigger>
                 <TabsTrigger value='github'>{t('GitHub')}</TabsTrigger>
                 <TabsTrigger value='discord'>{t('Discord')}</TabsTrigger>
                 <TabsTrigger value='oidc'>{t('OIDC')}</TabsTrigger>
@@ -302,6 +321,78 @@ export function OAuthSection(props: OAuthSectionProps) {
                 <TabsTrigger value='linuxdo'>{t('LinuxDO')}</TabsTrigger>
                 <TabsTrigger value='wechat'>{t('WeChat')}</TabsTrigger>
               </TabsList>
+
+              <TabsContent value='google' className={oauthTabContentClassName}>
+                <FormField
+                  control={form.control}
+                  name='GoogleOAuthEnabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable Google OAuth')}</FormLabel>
+                        <FormDescription>
+                          {t('Allow users to sign in with Google')}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='GoogleClientId'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Client ID')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('Your Google OAuth Client ID')}
+                          autoComplete='off'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='GoogleClientSecret'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Client Secret')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t('Your Google OAuth Client Secret')}
+                          autoComplete='new-password'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
 
               <TabsContent value='github' className={oauthTabContentClassName}>
                 <FormField

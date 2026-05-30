@@ -25,11 +25,18 @@ export type WorkspaceCapabilityKey =
   | 'webSearch'
   | 'fileUpload'
   | 'referenceImage'
-  | 'maskEdit'
-  | 'batchGenerate'
+  | 'sizeControl'
+  | 'ratioControl'
+  | 'styleControl'
+  | 'qualityControl'
   | 'firstFrame'
   | 'lastFrame'
+  | 'durationControl'
+  | 'resolutionControl'
+  | 'frameRateControl'
   | 'audioTrack'
+  | 'cameraControl'
+  | 'seedControl'
 
 export type WorkspaceCapabilityConfig = {
   key: WorkspaceCapabilityKey
@@ -44,9 +51,20 @@ export type WorkspaceChannel = {
   model: string
   modelAlias: string
   category: string | number
+  sizePresets?: string[]
+  ratioPresets?: string[]
+  stylePresets?: WorkspaceMappedPreset[]
+  qualityPresets?: WorkspaceMappedPreset[]
+  durationPresets?: string[]
+  frameRatePresets?: string[]
   capabilities: Record<WorkspaceCapabilityKey, boolean>
   disabled: boolean
   remark: string
+}
+
+export type WorkspaceMappedPreset = {
+  value: string
+  zh: string
 }
 
 export type WorkspaceChannelCategory = {

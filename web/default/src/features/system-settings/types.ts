@@ -79,6 +79,9 @@ export type AuthSettings = {
   EmailDomainRestrictionEnabled: boolean
   EmailAliasRestrictionEnabled: boolean
   EmailDomainWhitelist: string
+  GoogleOAuthEnabled: boolean
+  GoogleClientId: string
+  GoogleClientSecret: string
   GitHubOAuthEnabled: boolean
   GitHubClientId: string
   GitHubClientSecret: string

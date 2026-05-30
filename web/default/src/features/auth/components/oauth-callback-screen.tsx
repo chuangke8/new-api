@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { Loader2, Send, Shield, UserRound, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { SiGithub, SiLinux, SiWechat } from 'react-icons/si'
+import { SiGithub, SiGoogle, SiLinux, SiWechat } from 'react-icons/si'
 import { AuthLayout } from '../auth-layout'
 
 type OAuthCallbackScreenProps = {
@@ -33,6 +33,12 @@ type ProviderMeta = {
 }
 
 const providerDictionary: Record<string, ProviderMeta> = {
+  google: {
+    label: 'Google',
+    Icon: (props: { className?: string }) => (
+      <SiGoogle className={props.className} focusable='false' />
+    ),
+  },
   github: {
     label: 'GitHub',
     Icon: (props: { className?: string }) => (

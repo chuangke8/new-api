@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import {
   IconDiscord,
   IconGithub,
+  IconGmail,
   IconLinuxDo,
   IconWeChat,
 } from '@/assets/brand-icons'
@@ -55,8 +56,11 @@ export function OAuthProviders({
   const { t } = useTranslation()
   const {
     isLoading,
+    googleButtonText,
+    googleButtonDisabled,
     githubButtonText,
     githubButtonDisabled,
+    handleGoogleLogin,
     handleGitHubLogin,
     handleDiscordLogin,
     handleOIDCLogin,
@@ -66,6 +70,16 @@ export function OAuthProviders({
   } = useOAuthLogin(status)
 
   const providerButtons: ProviderButton[] = []
+
+  if (status?.google_oauth) {
+    providerButtons.push({
+      key: 'google',
+      label: googleButtonText || t('Continue with Google'),
+      onClick: handleGoogleLogin,
+      icon: <IconGmail className='h-4 w-4' />,
+      disabled: googleButtonDisabled,
+    })
+  }
 
   if (status?.wechat_login && onWeChatLogin) {
     providerButtons.push({

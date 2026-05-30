@@ -32,6 +32,7 @@ import {
   Power,
   PowerOff,
   Save,
+  X,
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -96,6 +97,7 @@ import type {
   WorkspaceChannel,
   WorkspaceChannelCategory,
   WorkspaceChannelKind,
+  WorkspaceMappedPreset,
   WorkspaceManagerConfig,
 } from './types'
 
@@ -110,6 +112,17 @@ type DeleteTarget =
 
 function sortByWeight<T extends { weight: number }>(items: T[]) {
   return [...items].sort((a, b) => b.weight - a.weight)
+}
+
+function isZhLanguage(language?: string) {
+  return Boolean(language?.toLowerCase().startsWith('zh'))
+}
+
+function formatMappedPreset(
+  preset: WorkspaceMappedPreset,
+  zhLanguage: boolean
+) {
+  return zhLanguage && preset.zh ? preset.zh : preset.value
 }
 
 function normalizeModelOptions(data?: string[]) {
@@ -196,7 +209,6 @@ export function WorkspaceChannelManager({
   const { data: modelsData } = useQuery({
     queryKey: ['workspace-chat-available-models'],
     queryFn: async () => (await getWorkspaceChatAvailableModels()).data || [],
-    enabled: isChat,
     staleTime: 60_000,
   })
 
@@ -214,10 +226,10 @@ export function WorkspaceChannelManager({
 
   const modelOptions = useMemo(
     () =>
-      isChat
+      normalizeModelOptions(modelsData).length > 0
         ? normalizeModelOptions(modelsData)
         : Array.from(new Set(FALLBACK_MODEL_OPTIONS)),
-    [isChat, modelsData]
+    [modelsData]
   )
   const resolvedCategories = isChat
     ? (chatCategoriesData || []).map(fromChatCategoryDto)
@@ -433,6 +445,7 @@ export function WorkspaceChannelManager({
         <TabsContent value='channels'>
           <WorkspaceChannelsTable
             config={config}
+            kind={kind}
             channels={resolvedChannels}
             categories={resolvedCategories}
             isLoading={isLoadingChannels}
@@ -506,6 +519,7 @@ export function WorkspaceChannelManager({
 
 function WorkspaceChannelsTable(props: {
   config: WorkspaceManagerConfig
+  kind: WorkspaceChannelKind
   channels: WorkspaceChannel[]
   categories: WorkspaceChannelCategory[]
   isLoading?: boolean
@@ -513,10 +527,11 @@ function WorkspaceChannelsTable(props: {
   onEdit: (channel: WorkspaceChannel) => void
   onDelete: (channel: WorkspaceChannel) => void
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'weight', desc: true },
   ])
+  const zhLanguage = isZhLanguage(i18n.language)
 
   const categoryMap = useMemo(
     () =>
@@ -527,6 +542,83 @@ function WorkspaceChannelsTable(props: {
         ])
       ),
     [props.categories]
+  )
+
+  const presetColumns = useMemo<ColumnDef<WorkspaceChannel>[]>(
+    () =>
+      props.kind === 'chat'
+        ? []
+        : [
+            {
+              id: 'sizePresets',
+              header: () =>
+                props.kind === 'video'
+                  ? t('Resolution presets')
+                  : t('Size presets'),
+              cell: ({ row }) => (
+                <PresetBadges values={row.original.sizePresets || []} />
+              ),
+              size: 180,
+            },
+            {
+              id: 'ratioPresets',
+              header: () => t('Ratio presets'),
+              cell: ({ row }) => (
+                <PresetBadges values={row.original.ratioPresets || []} />
+              ),
+              size: 160,
+            },
+            ...(props.kind === 'image'
+              ? [
+                  {
+                    id: 'stylePresets',
+                    header: () => t('Style presets'),
+                    cell: ({ row }) => (
+                      <PresetBadges
+                        values={(row.original.stylePresets || []).map((item) =>
+                          formatMappedPreset(item, zhLanguage)
+                        )}
+                      />
+                    ),
+                    size: 170,
+                  } satisfies ColumnDef<WorkspaceChannel>,
+                ]
+              : [
+                  {
+                    id: 'durationPresets',
+                    header: () => t('Duration presets'),
+                    cell: ({ row }) => (
+                      <PresetBadges
+                        values={row.original.durationPresets || []}
+                      />
+                    ),
+                    size: 150,
+                  } satisfies ColumnDef<WorkspaceChannel>,
+                  {
+                    id: 'frameRatePresets',
+                    header: () => t('Frame rate presets'),
+                    cell: ({ row }) => (
+                      <PresetBadges
+                        values={row.original.frameRatePresets || []}
+                      />
+                    ),
+                    size: 150,
+                  } satisfies ColumnDef<WorkspaceChannel>,
+                ]),
+            {
+              id: 'qualityPresets',
+              header: () => t('Quality presets'),
+              cell: ({ row }) => (
+                <PresetBadges
+                  values={(row.original.qualityPresets || []).map((item) =>
+                    formatMappedPreset(item, zhLanguage)
+                  )}
+                />
+              ),
+              size: 170,
+            },
+          ],
+    [props.kind, t, zhLanguage]
   )
 
   const columns = useMemo<ColumnDef<WorkspaceChannel>[]>(
@@ -566,6 +658,7 @@ function WorkspaceChannelsTable(props: {
           categoryMap.get(row.original.category) || row.original.category,
         size: 140,
       },
+      ...presetColumns,
       {
         id: 'capabilities',
         header: () => t('Feature controls'),
@@ -636,7 +729,7 @@ function WorkspaceChannelsTable(props: {
         size: 90,
       },
     ],
-    [categoryMap, props, t]
+    [categoryMap, presetColumns, props, t]
   )
 
   const table = useReactTable({
@@ -842,6 +935,33 @@ function CapabilityButtons(props: {
   )
 }
 
+function PresetBadges(props: { values: string[] }) {
+  const visible = props.values.filter(Boolean).slice(0, 4)
+  const rest = props.values.filter(Boolean).length - visible.length
+
+  if (visible.length === 0) {
+    return <span className='text-muted-foreground text-xs'>-</span>
+  }
+
+  return (
+    <div className='flex max-w-[220px] flex-wrap gap-1'>
+      {visible.map((value) => (
+        <span
+          key={value}
+          className='bg-muted text-foreground rounded-md px-1.5 py-0.5 text-xs'
+        >
+          {value}
+        </span>
+      ))}
+      {rest > 0 && (
+        <span className='bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 text-xs'>
+          +{rest}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function RemarkEditor(props: {
   value: string
   onSave: (value: string) => void
@@ -898,6 +1018,7 @@ function ChannelDialog(props: {
 }) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState<WorkspaceChannel | null>(props.value)
+  const kind = props.config.kind
 
   useEffect(() => {
     if (props.open) {
@@ -922,7 +1043,7 @@ function ChannelDialog(props: {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='sm:max-w-3xl'>
+      <DialogContent className={kind === 'video' ? 'sm:max-w-4xl' : 'sm:max-w-3xl'}>
         <DialogHeader>
           <DialogTitle>{t('Edit channel configuration')}</DialogTitle>
           <DialogDescription>
@@ -1011,20 +1132,45 @@ function ChannelDialog(props: {
           </div>
           <div className='space-y-3'>
             <Label>{t('Feature controls')}</Label>
-            <div className='grid gap-2 sm:grid-cols-3'>
+            <div
+              className={cn(
+                'grid gap-2',
+                kind === 'video'
+                  ? 'grid-cols-3'
+                  : 'sm:grid-cols-3'
+              )}
+            >
               {props.config.capabilities.map((capability) => {
                 const Icon = capability.icon
                 return (
                   <label
                     key={capability.key}
-                    className='bg-muted/30 flex items-start gap-2 rounded-lg border p-3'
+                    className={cn(
+                      'bg-muted/30 flex items-start rounded-lg border',
+                      kind === 'video' ? 'gap-1.5 p-2' : 'gap-2 p-3'
+                    )}
                   >
-                    <Icon className='mt-0.5 size-4 shrink-0' />
+                    <Icon
+                      className={cn(
+                        'mt-0.5 shrink-0',
+                        kind === 'video' ? 'size-3.5' : 'size-4'
+                      )}
+                    />
                     <span className='min-w-0 flex-1'>
-                      <span className='block text-sm font-medium'>
+                      <span
+                        className={cn(
+                          'block font-medium',
+                          kind === 'video' ? 'text-xs' : 'text-sm'
+                        )}
+                      >
                         {t(capability.labelKey)}
                       </span>
-                      <span className='text-muted-foreground block text-xs'>
+                      <span
+                        className={cn(
+                          'text-muted-foreground block',
+                          kind === 'video' ? 'text-[10px]' : 'text-xs'
+                        )}
+                      >
                         {t(capability.descriptionKey)}
                       </span>
                     </span>
@@ -1039,6 +1185,77 @@ function ChannelDialog(props: {
               })}
             </div>
           </div>
+          {kind === 'image' && (
+            <div className='grid gap-5 sm:grid-cols-2'>
+              <StringPresetEditor
+                label={t('Size presets')}
+                values={draft.sizePresets || []}
+                onChange={(sizePresets) =>
+                  setDraft({ ...draft, sizePresets })
+                }
+              />
+              <StringPresetEditor
+                label={t('Ratio presets')}
+                values={draft.ratioPresets || []}
+                onChange={(ratioPresets) =>
+                  setDraft({ ...draft, ratioPresets })
+                }
+              />
+              <MappedPresetEditor
+                label={t('Style presets')}
+                presets={draft.stylePresets || []}
+                onChange={(stylePresets) =>
+                  setDraft({ ...draft, stylePresets })
+                }
+              />
+              <MappedPresetEditor
+                label={t('Quality presets')}
+                presets={draft.qualityPresets || []}
+                onChange={(qualityPresets) =>
+                  setDraft({ ...draft, qualityPresets })
+                }
+              />
+            </div>
+          )}
+          {kind === 'video' && (
+            <div className='grid gap-5 sm:grid-cols-2'>
+              <StringPresetEditor
+                label={t('Resolution presets')}
+                values={draft.sizePresets || []}
+                onChange={(sizePresets) =>
+                  setDraft({ ...draft, sizePresets })
+                }
+              />
+              <StringPresetEditor
+                label={t('Ratio presets')}
+                values={draft.ratioPresets || []}
+                onChange={(ratioPresets) =>
+                  setDraft({ ...draft, ratioPresets })
+                }
+              />
+              <StringPresetEditor
+                label={t('Duration presets')}
+                values={draft.durationPresets || []}
+                onChange={(durationPresets) =>
+                  setDraft({ ...draft, durationPresets })
+                }
+              />
+              <StringPresetEditor
+                label={t('Frame rate presets')}
+                values={draft.frameRatePresets || []}
+                onChange={(frameRatePresets) =>
+                  setDraft({ ...draft, frameRatePresets })
+                }
+              />
+              <MappedPresetEditor
+                label={t('Quality presets')}
+                presets={draft.qualityPresets || []}
+                onChange={(qualityPresets) =>
+                  setDraft({ ...draft, qualityPresets })
+                }
+              />
+            </div>
+          )}
           <Field label={t('Remark')}>
             <Input
               value={draft.remark}
@@ -1153,6 +1370,141 @@ function CategoryDialog(props: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function StringPresetEditor(props: {
+  label: string
+  values: string[]
+  onChange: (values: string[]) => void
+}) {
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState('')
+
+  const addValue = () => {
+    const value = draft.trim()
+    if (!value) return
+    props.onChange(Array.from(new Set([...props.values, value])))
+    setDraft('')
+  }
+
+  return (
+    <div className='space-y-2'>
+      <Label>{props.label}</Label>
+      <div className='flex flex-wrap gap-1.5 rounded-md border p-2'>
+        {props.values.map((value) => (
+          <span
+            key={value}
+            className='bg-muted flex items-center gap-1 rounded-md px-2 py-1 text-xs'
+          >
+            {value}
+            <button
+              type='button'
+              aria-label={t('Delete')}
+              onClick={() =>
+                props.onChange(props.values.filter((item) => item !== value))
+              }
+            >
+              <X className='size-3' />
+            </button>
+          </span>
+        ))}
+        <div className='flex min-w-40 flex-1 gap-1'>
+          <Input
+            className='h-8'
+            value={draft}
+            placeholder={t('Add preset')}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                addValue()
+              }
+            }}
+          />
+          <Button type='button' size='sm' variant='outline' onClick={addValue}>
+            <Plus />
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MappedPresetEditor(props: {
+  label: string
+  presets: WorkspaceMappedPreset[]
+  onChange: (presets: WorkspaceMappedPreset[]) => void
+}) {
+  const { t } = useTranslation()
+  const [value, setValue] = useState('')
+  const [zh, setZh] = useState('')
+
+  const addPreset = () => {
+    const nextValue = value.trim()
+    if (!nextValue) return
+    const nextZh = zh.trim()
+    const next = [
+      ...props.presets.filter((item) => item.value !== nextValue),
+      { value: nextValue, zh: nextZh },
+    ]
+    props.onChange(next)
+    setValue('')
+    setZh('')
+  }
+
+  return (
+    <div className='space-y-2'>
+      <Label>{props.label}</Label>
+      <div className='space-y-2 rounded-md border p-2'>
+        <div className='flex flex-wrap gap-1.5'>
+          {props.presets.map((preset) => (
+            <span
+              key={preset.value}
+              className='bg-muted flex items-center gap-1 rounded-md px-2 py-1 text-xs'
+            >
+              {preset.value}
+              {preset.zh ? ` / ${preset.zh}` : ''}
+              <button
+                type='button'
+                aria-label={t('Delete')}
+                onClick={() =>
+                  props.onChange(
+                    props.presets.filter((item) => item.value !== preset.value)
+                  )
+                }
+              >
+                <X className='size-3' />
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className='grid gap-2 sm:grid-cols-[1fr_1fr_auto]'>
+          <Input
+            className='h-8'
+            value={value}
+            placeholder={t('Parameter value')}
+            onChange={(event) => setValue(event.target.value)}
+          />
+          <Input
+            className='h-8'
+            value={zh}
+            placeholder={t('Chinese display name')}
+            onChange={(event) => setZh(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                addPreset()
+              }
+            }}
+          />
+          <Button type='button' size='sm' variant='outline' onClick={addPreset}>
+            <Plus />
+            {t('Add')}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 

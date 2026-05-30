@@ -24,6 +24,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
 import { getOAuthState } from '../api'
 import {
+  buildGoogleOAuthUrl,
   buildGitHubOAuthUrl,
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
@@ -41,15 +42,22 @@ type LogoutRequestConfig = AxiosRequestConfig & {
 export function useOAuthLogin(status: SystemStatus | null) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
+  const [googleButtonText, setGoogleButtonText] = useState('')
+  const [googleButtonDisabled, setGoogleButtonDisabled] = useState(false)
   const [githubButtonText, setGithubButtonText] = useState('')
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false)
+  const googleTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const githubTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { auth } = useAuthStore()
 
   useEffect(() => {
+    setGoogleButtonText(t('Continue with Google'))
     setGithubButtonText(t('Continue with GitHub'))
 
     return () => {
+      if (googleTimeoutRef.current) {
+        clearTimeout(googleTimeoutRef.current)
+      }
       if (githubTimeoutRef.current) {
         clearTimeout(githubTimeoutRef.current)
       }
@@ -68,6 +76,53 @@ export function useOAuthLogin(status: SystemStatus | null) {
       } as LogoutRequestConfig)
     } catch (_error) {
       // ignore logout errors
+    }
+  }
+
+  const handleGoogleLogin = async () => {
+    if (!status?.google_client_id) return
+    if (googleButtonDisabled) return
+
+    setIsLoading(true)
+    setGoogleButtonDisabled(true)
+    setGoogleButtonText(t('Redirecting to Google...'))
+
+    if (googleTimeoutRef.current) {
+      clearTimeout(googleTimeoutRef.current)
+    }
+
+    googleTimeoutRef.current = setTimeout(() => {
+      setIsLoading(false)
+      setGoogleButtonText(
+        t('Request timed out, please refresh and restart Google login')
+      )
+      setGoogleButtonDisabled(true)
+    }, 20000)
+
+    try {
+      await resetSession()
+      const state = await getOAuthState()
+      if (!state) {
+        toast.error(t('Failed to initialize OAuth'))
+        if (googleTimeoutRef.current) {
+          clearTimeout(googleTimeoutRef.current)
+        }
+        setIsLoading(false)
+        setGoogleButtonText(t('Continue with Google'))
+        setGoogleButtonDisabled(false)
+        return
+      }
+
+      const url = buildGoogleOAuthUrl(status.google_client_id, state)
+      window.open(url, '_self')
+    } catch (_error) {
+      toast.error(t('Failed to start Google login'))
+      if (googleTimeoutRef.current) {
+        clearTimeout(googleTimeoutRef.current)
+      }
+      setIsLoading(false)
+      setGoogleButtonText(t('Continue with Google'))
+      setGoogleButtonDisabled(false)
     }
   }
 
@@ -223,8 +278,11 @@ export function useOAuthLogin(status: SystemStatus | null) {
 
   return {
     isLoading,
+    googleButtonText,
+    googleButtonDisabled,
     githubButtonText,
     githubButtonDisabled,
+    handleGoogleLogin,
     handleGitHubLogin,
     handleDiscordLogin,
     handleOIDCLogin,

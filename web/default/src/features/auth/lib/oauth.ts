@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { SystemStatus, OAuthProvider } from '../types'
 
 export {
+  buildGoogleOAuthUrl,
   buildGitHubOAuthUrl,
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
@@ -38,6 +39,15 @@ export function getAvailableOAuthProviders(
   if (!status) return []
 
   const providers: OAuthProvider[] = []
+
+  if (status.google_oauth) {
+    providers.push({
+      name: 'Google',
+      type: 'google',
+      enabled: true,
+      clientId: status.google_client_id,
+    })
+  }
 
   if (status.github_oauth) {
     providers.push({
@@ -93,6 +103,7 @@ export function getAvailableOAuthProviders(
 export function hasOAuthProviders(status: SystemStatus | null): boolean {
   if (!status) return false
   return !!(
+    status.google_oauth ||
     status.github_oauth ||
     status.discord_oauth ||
     status.oidc_enabled ||

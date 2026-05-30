@@ -104,6 +104,7 @@ export const DEFAULT_GROUP = 'default' as const
 // ============================================================================
 
 export const BINDING_FIELDS = [
+  { key: 'google_id', label: 'Google ID' },
   { key: 'github_id', label: 'GitHub ID' },
   { key: 'discord_id', label: 'Discord ID' },
   { key: 'oidc_id', label: 'OIDC ID' },

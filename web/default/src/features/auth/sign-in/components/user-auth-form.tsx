@@ -103,6 +103,7 @@ export function UserAuthForm({
     (requiresLegalConsent && !agreedToLegal)
   const hasWeChatLogin = Boolean(status?.wechat_login)
   const hasOAuthLogin = Boolean(
+    status?.google_oauth ||
     status?.github_oauth ||
     status?.discord_oauth ||
     status?.oidc_enabled ||
@@ -332,8 +333,6 @@ export function UserAuthForm({
         className={cn('grid gap-4', className)}
         {...props}
       >
-        {hasAlternativeLogin && alternativeLoginMethods}
-
         {passwordLoginEnabled && (
           <>
             {/* Username Field */}
@@ -407,7 +406,7 @@ export function UserAuthForm({
           className='mt-1'
         />
 
-        {!hasAlternativeLogin && alternativeLoginMethods}
+        {hasAlternativeLogin && alternativeLoginMethods}
       </form>
 
       {hasWeChatLogin && (

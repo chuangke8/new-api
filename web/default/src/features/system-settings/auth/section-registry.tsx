@@ -48,6 +48,9 @@ const AUTH_SECTIONS = [
     build: (settings: AuthSettings) => (
       <OAuthSection
         defaultValues={{
+          GoogleOAuthEnabled: settings.GoogleOAuthEnabled,
+          GoogleClientId: settings.GoogleClientId,
+          GoogleClientSecret: settings.GoogleClientSecret,
           GitHubOAuthEnabled: settings.GitHubOAuthEnabled,
           GitHubClientId: settings.GitHubClientId,
           GitHubClientSecret: settings.GitHubClientSecret,

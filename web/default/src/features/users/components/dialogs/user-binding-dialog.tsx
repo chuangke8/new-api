@@ -29,7 +29,7 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { SiGithub, SiDiscord } from 'react-icons/si'
+import { SiGithub, SiDiscord, SiGoogle } from 'react-icons/si'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -78,6 +78,7 @@ interface BindingItem {
 }
 
 interface StatusInfo {
+  google_oauth?: boolean
   github_oauth?: boolean
   discord_oauth?: boolean
   oidc_enabled?: boolean
@@ -104,6 +105,13 @@ const BUILTIN_BINDINGS: ReadonlyArray<{
     label: 'Email',
     icon: <Mail className='h-4 w-4' />,
     statusKey: null,
+  },
+  {
+    key: 'google_id',
+    field: 'google_id',
+    label: 'Google',
+    icon: <SiGoogle className='h-4 w-4' />,
+    statusKey: 'google_oauth',
   },
   {
     key: 'github_id',
@@ -235,6 +243,7 @@ export function UserBindingDialog(props: Props) {
         icon: field.icon,
         value: isBound ? value : '',
         type: 'builtin',
+        providerId: field.key.replace(/_id$/, '').replace('linux_do', 'linuxdo'),
         isBound,
         isEnabled,
       })
@@ -292,7 +301,10 @@ export function UserBindingDialog(props: Props) {
     try {
       let res
       if (unbindTarget.type === 'builtin') {
-        res = await adminClearUserBinding(props.userId, unbindTarget.key)
+        res = await adminClearUserBinding(
+          props.userId,
+          unbindTarget.providerId || unbindTarget.key
+        )
       } else if (unbindTarget.providerId) {
         res = await adminUnbindCustomOAuth(
           props.userId,

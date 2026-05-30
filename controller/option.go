@@ -150,6 +150,14 @@ func UpdateOption(c *gin.Context) {
 		}
 	}
 	switch option.Key {
+	case "GoogleOAuthEnabled":
+		if option.Value == "true" && (common.GoogleClientId == "" || common.GoogleClientSecret == "") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 Google OAuth，请先填入 Google Client Id 以及 Google Client Secret！",
+			})
+			return
+		}
 	case "GitHubOAuthEnabled":
 		if option.Value == "true" && common.GitHubClientId == "" {
 			c.JSON(http.StatusOK, gin.H{

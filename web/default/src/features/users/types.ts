@@ -35,6 +35,7 @@ export const userSchema = z.object({
   username: z.string(),
   display_name: z.string(),
   password: z.string().optional(),
+  google_id: z.string().optional(),
   github_id: z.string().optional(),
   oidc_id: z.string().optional(),
   wechat_id: z.string().optional(),

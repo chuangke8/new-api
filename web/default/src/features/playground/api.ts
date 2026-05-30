@@ -23,7 +23,31 @@ import type {
   ChatCompletionResponse,
   ModelOption,
   GroupOption,
+  MessageRole,
+  WorkspaceChatMessage,
+  WorkspaceChatMessageMetadata,
+  WorkspaceChatSession,
 } from './types'
+
+type ApiResponse<T> = {
+  success: boolean
+  message?: string
+  data: T
+}
+
+type WorkspaceChatModelDto = {
+  id: number
+  model: string
+  model_alias: string
+  display_name: string
+  category_id: number
+  category_name: string
+  category_alias: string
+  category_display: string
+  vision_enabled: boolean
+  file_upload_enabled: boolean
+  web_search_enabled: boolean
+}
 
 /**
  * Send chat completion request (non-streaming)
@@ -54,6 +78,27 @@ export async function getUserModels(): Promise<ModelOption[]> {
   }))
 }
 
+export async function getWorkspaceChatModels(): Promise<ModelOption[]> {
+  const res = await api.get<ApiResponse<WorkspaceChatModelDto[]>>(
+    '/api/workspace/chat/models'
+  )
+  const { data } = res
+
+  if (!data.success || !Array.isArray(data.data)) {
+    return []
+  }
+
+  return data.data.map((model) => ({
+    label: model.display_name || model.model_alias || model.model,
+    value: model.model,
+    category:
+      model.category_display || model.category_alias || model.category_name,
+    visionEnabled: model.vision_enabled,
+    fileUploadEnabled: model.file_upload_enabled,
+    webSearchEnabled: model.web_search_enabled,
+  }))
+}
+
 /**
  * Get user groups
  */
@@ -74,4 +119,79 @@ export async function getUserGroups(): Promise<GroupOption[]> {
     ratio: info.ratio,
     desc: info.desc,
   }))
+}
+
+export async function getWorkspaceChatSessions(archived = false) {
+  const res = await api.get<ApiResponse<WorkspaceChatSession[]>>(
+    '/api/workspace/chat/sessions',
+    { params: { archived } }
+  )
+  return res.data
+}
+
+export async function createWorkspaceChatSession(data: {
+  title?: string
+  model?: string
+  archived?: boolean
+}) {
+  const res = await api.post<ApiResponse<WorkspaceChatSession>>(
+    '/api/workspace/chat/sessions',
+    data
+  )
+  return res.data
+}
+
+export async function updateWorkspaceChatSession(
+  id: number,
+  data: Partial<Pick<WorkspaceChatSession, 'title' | 'model' | 'archived'>>
+) {
+  const res = await api.put<ApiResponse<WorkspaceChatSession>>(
+    `/api/workspace/chat/sessions/${id}`,
+    data
+  )
+  return res.data
+}
+
+export async function deleteWorkspaceChatSession(id: number) {
+  const res = await api.delete<ApiResponse<null>>(
+    `/api/workspace/chat/sessions/${id}`
+  )
+  return res.data
+}
+
+export async function archiveWorkspaceChatSession(id: number) {
+  const res = await api.post<ApiResponse<WorkspaceChatSession>>(
+    `/api/workspace/chat/sessions/${id}/archive`
+  )
+  return res.data
+}
+
+export async function unarchiveWorkspaceChatSession(id: number) {
+  const res = await api.post<ApiResponse<WorkspaceChatSession>>(
+    `/api/workspace/chat/sessions/${id}/unarchive`
+  )
+  return res.data
+}
+
+export async function getWorkspaceChatMessages(sessionId: number) {
+  const res = await api.get<ApiResponse<WorkspaceChatMessage[]>>(
+    `/api/workspace/chat/sessions/${sessionId}/messages`
+  )
+  return res.data
+}
+
+export async function createWorkspaceChatMessage(
+  sessionId: number,
+  data: {
+    role: MessageRole
+    content: string
+    model?: string
+    metadata?: WorkspaceChatMessageMetadata
+  }
+) {
+  const res = await api.post<ApiResponse<WorkspaceChatMessage>>(
+    `/api/workspace/chat/sessions/${sessionId}/messages`,
+    data
+  )
+  return res.data
 }

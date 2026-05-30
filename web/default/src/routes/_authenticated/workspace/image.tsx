@@ -17,23 +17,47 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { ImageIcon } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { isSidebarModuleEnabled } from '@/lib/nav-modules'
 import { Main } from '@/components/layout'
-import { Playground } from '@/features/playground'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 
-export const Route = createFileRoute('/_authenticated/playground/')({
+export const Route = createFileRoute('/_authenticated/workspace/image')({
   beforeLoad: () => {
-    if (!isSidebarModuleEnabled('chat', 'workspace_chat')) {
+    if (!isSidebarModuleEnabled('chat', 'workspace_image')) {
       throw redirect({ to: '/dashboard' })
     }
   },
-  component: PlaygroundPage,
+  component: WorkspaceImagePage,
 })
 
-function PlaygroundPage() {
+function WorkspaceImagePage() {
+  const { t } = useTranslation()
+
   return (
-    <Main className='p-0'>
-      <Playground />
+    <Main>
+      <Empty className='min-h-[calc(100vh-8rem)]'>
+        <EmptyHeader>
+          <EmptyMedia variant='icon'>
+            <ImageIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t('Image generation')}</EmptyTitle>
+          <EmptyDescription>
+            {t('Image generation workspace is being prepared.')}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          {t('Navigation and permissions are ready; generation controls will be connected later.')}
+        </EmptyContent>
+      </Empty>
     </Main>
   )
 }

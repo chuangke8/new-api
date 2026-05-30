@@ -16,19 +16,83 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import type { FileUIPart } from 'ai'
 import { toast } from 'sonner'
-import { getUserModels, getUserGroups } from './api'
+import {
+  archiveWorkspaceChatSession,
+  createWorkspaceChatMessage,
+  createWorkspaceChatSession,
+  deleteWorkspaceChatSession,
+  getUserGroups,
+  getWorkspaceChatMessages,
+  getWorkspaceChatModels,
+  getWorkspaceChatSessions,
+  unarchiveWorkspaceChatSession,
+  updateWorkspaceChatSession,
+} from './api'
+import { ChatSessionSidebar } from './components/chat-session-sidebar'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
 import { usePlaygroundState, useChatHandler } from './hooks'
-import { createUserMessage, createLoadingAssistantMessage } from './lib'
-import type { Message as MessageType } from './types'
+import {
+  createLoadingAssistantMessage,
+  createMessageVersion,
+  createUserMessage,
+} from './lib'
+import type {
+  Message as MessageType,
+  WorkspaceChatMessage,
+  WorkspaceChatMessageMetadata,
+  WorkspaceChatSession,
+} from './types'
+
+function parseMetadata(raw: string): WorkspaceChatMessageMetadata {
+  if (!raw) return {}
+  try {
+    return JSON.parse(raw) as WorkspaceChatMessageMetadata
+  } catch {
+    return {}
+  }
+}
+
+function mapServerMessage(message: WorkspaceChatMessage): MessageType {
+  const metadata = parseMetadata(message.metadata)
+  return {
+    key: metadata.key || `server-${message.id}`,
+    from: message.role,
+    versions: [createMessageVersion(message.content || '')],
+    imageUrls: metadata.imageUrls,
+    fileNames: metadata.fileNames,
+    sources: metadata.sources,
+    reasoning: metadata.reasoning,
+    status: metadata.status || 'complete',
+    errorCode: metadata.errorCode ?? null,
+    isReasoningStreaming: false,
+    isReasoningComplete: true,
+    isContentComplete: true,
+  }
+}
+
+function getMessageContent(message: MessageType) {
+  return message.versions[0]?.content || ''
+}
+
+function isPersistableMessage(message: MessageType) {
+  if (message.from === 'user') return true
+  if (message.from !== 'assistant') return false
+  return (
+    message.status === 'complete' ||
+    message.status === 'error' ||
+    Boolean(getMessageContent(message).trim())
+  )
+}
 
 export function Playground() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const {
     config,
     parameterEnabled,
@@ -51,13 +115,18 @@ export function Playground() {
   const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
     null
   )
+  const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
+  const [showArchivedSessions, setShowArchivedSessions] = useState(false)
+  const [sessionsCollapsed, setSessionsCollapsed] = useState(false)
+  const persistedMessageKeysRef = useRef(new Set<string>())
+  const loadingSessionRef = useRef(false)
 
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
-    queryKey: ['playground-models'],
+    queryKey: ['workspace-chat-models'],
     queryFn: async () => {
       try {
-        return await getUserModels()
+        return await getWorkspaceChatModels()
       } catch (error) {
         toast.error(
           error instanceof Error
@@ -66,6 +135,59 @@ export function Playground() {
         )
         return []
       }
+    },
+  })
+
+  const { data: sessionsData, isLoading: isLoadingSessions } = useQuery({
+    queryKey: ['workspace-chat-sessions', showArchivedSessions],
+    queryFn: async () =>
+      (await getWorkspaceChatSessions(showArchivedSessions)).data || [],
+  })
+
+  const sessions = sessionsData || []
+
+  const invalidateSessions = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['workspace-chat-sessions'] })
+  }, [queryClient])
+
+  const createSessionMutation = useMutation({
+    mutationFn: (data: { title?: string; model?: string }) =>
+      createWorkspaceChatSession(data),
+    onSuccess: (res) => {
+      invalidateSessions()
+      if (res.data?.id) {
+        persistedMessageKeysRef.current.clear()
+        setActiveSessionId(res.data.id)
+      }
+    },
+  })
+
+  const renameSessionMutation = useMutation({
+    mutationFn: ({ id, title }: { id: number; title: string }) =>
+      updateWorkspaceChatSession(id, { title }),
+    onSuccess: invalidateSessions,
+  })
+
+  const archiveSessionMutation = useMutation({
+    mutationFn: (id: number) => archiveWorkspaceChatSession(id),
+    onSuccess: invalidateSessions,
+  })
+
+  const unarchiveSessionMutation = useMutation({
+    mutationFn: (id: number) => unarchiveWorkspaceChatSession(id),
+    onSuccess: invalidateSessions,
+  })
+
+  const deleteSessionMutation = useMutation({
+    mutationFn: (id: number) => deleteWorkspaceChatSession(id),
+    onSuccess: (_, id) => {
+      if (activeSessionId === id) {
+        setActiveSessionId(null)
+        persistedMessageKeysRef.current.clear()
+        updateMessages([])
+      }
+      invalidateSessions()
+      toast.success(t('Conversation deleted'))
     },
   })
 
@@ -96,8 +218,82 @@ export function Playground() {
     const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
     if (modelsData.length > 0 && !isCurrentModelValid) {
       updateConfig('model', modelsData[0].value)
+    } else if (modelsData.length === 0 && config.model) {
+      updateConfig('model', '')
     }
   }, [modelsData, config.model, setModels, updateConfig])
+
+  const selectedModel = useMemo(
+    () => models.find((model) => model.value === config.model),
+    [config.model, models]
+  )
+
+  const loadSessionMessages = useCallback(
+    async (session: WorkspaceChatSession) => {
+      loadingSessionRef.current = true
+      setActiveSessionId(session.id)
+      updateConfig('model', session.model || config.model)
+      try {
+        const res = await getWorkspaceChatMessages(session.id)
+        const serverMessages = (res.data || []).map(mapServerMessage)
+        persistedMessageKeysRef.current = new Set(
+          serverMessages.map((message) => message.key)
+        )
+        updateMessages(serverMessages)
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : t('Failed to load conversation')
+        )
+      } finally {
+        loadingSessionRef.current = false
+      }
+    },
+    [config.model, t, updateConfig, updateMessages]
+  )
+
+  const ensureActiveSession = useCallback(async () => {
+    if (activeSessionId) return activeSessionId
+    const res = await createWorkspaceChatSession({
+      title: t('New chat'),
+      model: config.model,
+    })
+    const nextId = res.data.id
+    setActiveSessionId(nextId)
+    invalidateSessions()
+    return nextId
+  }, [activeSessionId, config.model, invalidateSessions, t])
+
+  useEffect(() => {
+    if (!activeSessionId || loadingSessionRef.current) return
+    const pending = messages.filter(
+      (message) =>
+        !persistedMessageKeysRef.current.has(message.key) &&
+        isPersistableMessage(message)
+    )
+    if (pending.length === 0) return
+
+    pending.forEach((message) => {
+      persistedMessageKeysRef.current.add(message.key)
+      createWorkspaceChatMessage(activeSessionId, {
+        role: message.from,
+        content: getMessageContent(message),
+        model: config.model,
+        metadata: {
+          key: message.key,
+          imageUrls: message.imageUrls,
+          fileNames: message.fileNames,
+          status: message.status,
+          errorCode: message.errorCode,
+          reasoning: message.reasoning,
+          sources: message.sources,
+        },
+      })
+        .then(() => invalidateSessions())
+        .catch(() => persistedMessageKeysRef.current.delete(message.key))
+    })
+  }, [activeSessionId, config.model, invalidateSessions, messages])
 
   // Update groups when data changes
   useEffect(() => {
@@ -114,11 +310,36 @@ export function Playground() {
     }
   }, [groupsData, setGroups, config.group, updateConfig])
 
-  const handleSendMessage = (text: string) => {
-    const userMessage = createUserMessage(text)
+  const handleSendMessage = async (text: string, files: FileUIPart[] = []) => {
+    const sessionId = await ensureActiveSession()
+    const imageUrls = files
+      .filter((file) => file.mediaType?.startsWith('image/') && file.url)
+      .map((file) => file.url!)
+    const fileNames = files
+      .filter((file) => !file.mediaType?.startsWith('image/'))
+      .map((file) => file.filename || t('Attachment'))
+
+    if (fileNames.length > 0) {
+      toast.info(t('File upload is staged for later backend support.'))
+    }
+
+    const userMessage = createUserMessage(text, imageUrls, fileNames)
     const assistantMessage = createLoadingAssistantMessage()
 
     const newMessages = [...messages, userMessage, assistantMessage]
+    persistedMessageKeysRef.current.add(userMessage.key)
+    createWorkspaceChatMessage(sessionId, {
+      role: userMessage.from,
+      content: getMessageContent(userMessage),
+      model: config.model,
+      metadata: {
+        key: userMessage.key,
+        imageUrls: userMessage.imageUrls,
+        fileNames: userMessage.fileNames,
+      },
+    })
+      .then(() => invalidateSessions())
+      .catch(() => persistedMessageKeysRef.current.delete(userMessage.key))
     updateMessages(newMessages)
 
     // Send chat request
@@ -189,38 +410,76 @@ export function Playground() {
   }
 
   return (
-    <div className='relative flex size-full flex-col overflow-hidden'>
-      {/* Full-width scroll container: scrolling works even over side whitespace */}
-      <div className='flex flex-1 flex-col overflow-hidden'>
-        <PlaygroundChat
-          messages={messages}
-          onCopyMessage={handleCopyMessage}
-          onRegenerateMessage={handleRegenerateMessage}
-          onEditMessage={handleEditMessage}
-          onDeleteMessage={handleDeleteMessage}
-          isGenerating={isGenerating}
-          editingKey={editingMessageKey}
-          onCancelEdit={handleEditOpenChange}
-          onSaveEdit={(newContent) => applyEdit(newContent, false)}
-          onSaveEditAndSubmit={(newContent) => applyEdit(newContent, true)}
-        />
-      </div>
+    <div className='relative flex size-full overflow-hidden'>
+      <ChatSessionSidebar
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        archived={showArchivedSessions}
+        collapsed={sessionsCollapsed}
+        isLoading={isLoadingSessions}
+        onArchivedChange={setShowArchivedSessions}
+        onCollapsedChange={setSessionsCollapsed}
+        onNewSession={() => {
+          persistedMessageKeysRef.current.clear()
+          setActiveSessionId(null)
+          updateMessages([])
+          createSessionMutation.mutate({
+            title: t('New chat'),
+            model: config.model,
+          })
+        }}
+        onSelectSession={loadSessionMessages}
+        onRenameSession={(session, title) =>
+          renameSessionMutation.mutate({ id: session.id, title })
+        }
+        onArchiveSession={(session) => archiveSessionMutation.mutate(session.id)}
+        onUnarchiveSession={(session) =>
+          unarchiveSessionMutation.mutate(session.id)
+        }
+        onDeleteSession={(session) => deleteSessionMutation.mutate(session.id)}
+      />
+      <div className='relative flex min-w-0 flex-1 flex-col overflow-hidden'>
+        {/* Full-width scroll container: scrolling works even over side whitespace */}
+        <div className='flex flex-1 flex-col overflow-hidden'>
+          <PlaygroundChat
+            messages={messages}
+            onCopyMessage={handleCopyMessage}
+            onRegenerateMessage={handleRegenerateMessage}
+            onEditMessage={handleEditMessage}
+            onDeleteMessage={handleDeleteMessage}
+            isGenerating={isGenerating}
+            editingKey={editingMessageKey}
+            onCancelEdit={handleEditOpenChange}
+            onSaveEdit={(newContent) => applyEdit(newContent, false)}
+            onSaveEditAndSubmit={(newContent) => applyEdit(newContent, true)}
+          />
+        </div>
 
-      {/* Input area: center content and constrain to the same container width */}
-      <div className='mx-auto w-full max-w-4xl'>
-        <PlaygroundInput
-          disabled={isGenerating}
-          groups={groups}
-          groupValue={config.group}
-          isGenerating={isGenerating}
-          isModelLoading={isLoadingModels}
-          modelValue={config.model}
-          models={models}
-          onGroupChange={(value) => updateConfig('group', value)}
-          onModelChange={(value) => updateConfig('model', value)}
-          onStop={stopGeneration}
-          onSubmit={handleSendMessage}
-        />
+        {/* Input area: center content and constrain to the same container width */}
+        <div className='mx-auto w-full max-w-4xl'>
+          <PlaygroundInput
+            disabled={isGenerating}
+            groups={groups}
+            groupValue={config.group}
+            isGenerating={isGenerating}
+            isModelLoading={isLoadingModels}
+            modelValue={config.model}
+            models={models}
+            onGroupChange={(value) => updateConfig('group', value)}
+            onModelChange={(value) => updateConfig('model', value)}
+            onStop={stopGeneration}
+            onSubmit={handleSendMessage}
+            capabilities={
+              selectedModel
+                ? {
+                    visionEnabled: selectedModel.visionEnabled,
+                    fileUploadEnabled: selectedModel.fileUploadEnabled,
+                    webSearchEnabled: selectedModel.webSearchEnabled,
+                  }
+                : undefined
+            }
+          />
+        </div>
       </div>
     </div>
   )

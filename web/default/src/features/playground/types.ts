@@ -30,6 +30,8 @@ export interface Message {
   key: string
   from: MessageRole
   versions: MessageVersion[]
+  imageUrls?: string[]
+  fileNames?: string[]
   sources?: { href: string; title: string }[]
   reasoning?: {
     content: string
@@ -132,6 +134,11 @@ export interface ParameterEnabled {
 export interface ModelOption {
   label: string
   value: string
+  category?: string
+  description?: string
+  visionEnabled?: boolean
+  fileUploadEnabled?: boolean
+  webSearchEnabled?: boolean
 }
 
 export interface GroupOption {
@@ -139,4 +146,36 @@ export interface GroupOption {
   value: string
   ratio: number
   desc?: string
+}
+
+export interface WorkspaceChatSession {
+  id: number
+  user_id: number
+  title: string
+  model: string
+  archived: boolean
+  created_time: number
+  updated_time: number
+}
+
+export interface WorkspaceChatMessage {
+  id: number
+  session_id: number
+  user_id: number
+  role: MessageRole
+  content: string
+  model: string
+  metadata: string
+  created_time: number
+  updated_time: number
+}
+
+export interface WorkspaceChatMessageMetadata {
+  key?: string
+  imageUrls?: string[]
+  fileNames?: string[]
+  status?: MessageStatus
+  errorCode?: string | null
+  reasoning?: Message['reasoning']
+  sources?: Message['sources']
 }

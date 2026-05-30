@@ -22,6 +22,7 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
+  ImageIcon,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -49,16 +50,34 @@ export function useSidebarData(): SidebarData {
     navGroups: [
       {
         id: 'chat',
-        title: t('Chat'),
+        title: t('Workspace'),
         items: [
           {
-            title: t('Playground'),
-            url: '/playground',
+            title: t('Workspace'),
             icon: FlaskConical,
+            items: [
+              {
+                title: t('Chat'),
+                url: '/workspace/chat',
+                activeUrls: ['/playground'],
+                configUrls: ['/workspace/chat', '/playground'],
+                icon: MessageSquare,
+              },
+              {
+                title: t('Image'),
+                url: '/workspace/image',
+                icon: ImageIcon,
+              },
+              {
+                title: t('Video'),
+                url: '/workspace/video',
+                icon: Radio,
+              },
+            ],
           },
           {
-            title: t('Chat'),
-            icon: MessageSquare,
+            title: t('Chat Presets'),
+            icon: FlaskConical,
             type: 'chat-presets',
           },
         ],

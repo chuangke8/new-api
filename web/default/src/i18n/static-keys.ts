@@ -40,6 +40,10 @@ export const STATIC_I18N_KEYS = [
   'Integrations',
   'Models',
   'Maintenance',
+  'Workspace Settings',
+  'Chat Channel Management',
+  'Image Channel Management',
+  'Video Channel Management',
 
   // Pricing constants
   'Name',

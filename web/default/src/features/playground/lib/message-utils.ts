@@ -59,11 +59,17 @@ export function updateCurrentVersionContent(
 /**
  * Create a user message
  */
-export function createUserMessage(content: string): Message {
+export function createUserMessage(
+  content: string,
+  imageUrls: string[] = [],
+  fileNames: string[] = []
+): Message {
   return {
     key: nanoid(),
     from: MESSAGE_ROLES.USER,
     versions: [createMessageVersion(content)],
+    imageUrls,
+    fileNames,
   }
 }
 
@@ -133,7 +139,7 @@ export function formatMessageForAPI(message: Message): ChatCompletionMessage {
   const currentVersion = getCurrentVersion(message)
   return {
     role: message.from,
-    content: currentVersion.content,
+    content: buildMessageContent(currentVersion.content, message.imageUrls),
   }
 }
 
@@ -148,7 +154,20 @@ export function isValidMessage(message: Message): boolean {
   if (content === undefined) return false
 
   // Exclude empty assistant messages (loading/streaming placeholders)
-  if (message.from === 'assistant' && !content.trim()) return false
+  if (
+    message.from === 'assistant' &&
+    typeof content === 'string' &&
+    !content.trim()
+  )
+    return false
+
+  if (
+    message.from === 'user' &&
+    typeof content === 'string' &&
+    !content.trim() &&
+    !message.imageUrls?.length
+  )
+    return false
 
   return true
 }

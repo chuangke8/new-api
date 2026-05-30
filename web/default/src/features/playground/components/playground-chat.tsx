@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -80,6 +81,7 @@ export function PlaygroundChat({
   onCancelEdit,
   onSaveEditAndSubmit,
 }: PlaygroundChatProps) {
+  const { t } = useTranslation()
   const [editText, setEditText] = useState('')
   const [originalText, setOriginalText] = useState('')
 
@@ -137,7 +139,7 @@ export function PlaygroundChat({
                                   }
                                   disabled={isEmpty || !isChanged}
                                 >
-                                  Save & Submit
+                                  {t('Save & Submit')}
                                 </Button>
                               )}
                               <Button
@@ -145,14 +147,14 @@ export function PlaygroundChat({
                                 onClick={() => onSaveEdit?.(editText)}
                                 disabled={isEmpty || !isChanged}
                               >
-                                Save
+                                {t('Save')}
                               </Button>
                               <Button
                                 size='sm'
                                 variant='outline'
                                 onClick={() => onCancelEdit?.(false)}
                               >
-                                Cancel
+                                {t('Cancel')}
                               </Button>
                             </div>
                           </div>
@@ -233,7 +235,7 @@ export function PlaygroundChat({
                                     <div className='flex items-center gap-2 py-2'>
                                       <Loader />
                                       <Shimmer className='text-sm' duration={1}>
-                                        Responding...
+                                        {t('Responding...')}
                                       </Shimmer>
                                     </div>
                                   )}
@@ -250,6 +252,36 @@ export function PlaygroundChat({
                                   ) : (
                                     showMessageContent && (
                                       <>
+                                        {message.imageUrls?.length ? (
+                                          <div className='mb-2 flex flex-wrap gap-2'>
+                                            {message.imageUrls.map(
+                                              (imageUrl, imageIndex) => (
+                                                <img
+                                                  alt={t('Uploaded image {{index}}', {
+                                                    index: imageIndex + 1,
+                                                  })}
+                                                  className='border-border max-h-40 rounded-md border object-contain'
+                                                  key={`${message.key}-image-${imageIndex}`}
+                                                  src={imageUrl}
+                                                />
+                                              )
+                                            )}
+                                          </div>
+                                        ) : null}
+                                        {message.fileNames?.length ? (
+                                          <div className='text-muted-foreground mb-2 flex flex-wrap gap-2 text-xs'>
+                                            {message.fileNames.map(
+                                              (fileName, fileIndex) => (
+                                                <span
+                                                  className='bg-muted rounded-md px-2 py-1'
+                                                  key={`${message.key}-file-${fileIndex}`}
+                                                >
+                                                  {fileName}
+                                                </span>
+                                              )
+                                            )}
+                                          </div>
+                                        ) : null}
                                         <MessageContent
                                           variant='flat'
                                           className={cn(

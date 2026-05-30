@@ -16,24 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
-import { isSidebarModuleEnabled } from '@/lib/nav-modules'
-import { Main } from '@/components/layout'
-import { Playground } from '@/features/playground'
+import { SettingsPage } from '../components/settings-page'
+import {
+  WORKSPACE_DEFAULT_SECTION,
+  getWorkspaceSectionContent,
+  getWorkspaceSectionMeta,
+} from './section-registry'
 
-export const Route = createFileRoute('/_authenticated/playground/')({
-  beforeLoad: () => {
-    if (!isSidebarModuleEnabled('chat', 'workspace_chat')) {
-      throw redirect({ to: '/dashboard' })
-    }
-  },
-  component: PlaygroundPage,
-})
-
-function PlaygroundPage() {
+export function WorkspaceSettings() {
   return (
-    <Main className='p-0'>
-      <Playground />
-    </Main>
+    <SettingsPage
+      routePath='/_authenticated/system-settings/workspace/$section'
+      defaultSettings={{}}
+      defaultSection={WORKSPACE_DEFAULT_SECTION}
+      getSectionContent={getWorkspaceSectionContent}
+      getSectionMeta={getWorkspaceSectionMeta}
+    />
   )
 }
+

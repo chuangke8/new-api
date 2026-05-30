@@ -38,7 +38,9 @@ type SidebarModulesUserConfig = SidebarModulesAdminConfig | null
 const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   chat: {
     enabled: true,
-    playground: true,
+    workspace_chat: true,
+    workspace_image: true,
+    workspace_video: true,
     chat: true,
   },
   console: {
@@ -94,7 +96,11 @@ const mergeWithDefaultSidebarModules = (
  * Mapping from URL to configuration keys
  */
 const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
-  '/playground': { section: 'chat', module: 'playground' },
+  '/playground': { section: 'chat', module: 'workspace_chat' },
+  '/workspace': { section: 'chat', module: 'workspace_chat' },
+  '/workspace/chat': { section: 'chat', module: 'workspace_chat' },
+  '/workspace/image': { section: 'chat', module: 'workspace_image' },
+  '/workspace/video': { section: 'chat', module: 'workspace_video' },
   '/dashboard': { section: 'console', module: 'detail' },
   '/dashboard/overview': { section: 'console', module: 'detail' },
   '/dashboard/models': { section: 'console', module: 'detail' },

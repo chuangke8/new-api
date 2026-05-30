@@ -21,16 +21,16 @@ import { isSidebarModuleEnabled } from '@/lib/nav-modules'
 import { Main } from '@/components/layout'
 import { Playground } from '@/features/playground'
 
-export const Route = createFileRoute('/_authenticated/playground/')({
+export const Route = createFileRoute('/_authenticated/workspace/chat')({
   beforeLoad: () => {
     if (!isSidebarModuleEnabled('chat', 'workspace_chat')) {
       throw redirect({ to: '/dashboard' })
     }
   },
-  component: PlaygroundPage,
+  component: WorkspaceChatPage,
 })
 
-function PlaygroundPage() {
+function WorkspaceChatPage() {
   return (
     <Main className='p-0'>
       <Playground />

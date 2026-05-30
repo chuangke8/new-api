@@ -56,18 +56,28 @@ export function SidebarModulesCard() {
   const sectionDefs: SectionDef[] = [
     {
       key: 'chat',
-      title: t('Chat Area'),
-      description: t('Playground and chat functions'),
+      title: t('Workspace'),
+      description: t('Workbench tools and chat presets.'),
       modules: [
         {
-          key: 'playground',
-          title: t('Playground'),
-          description: t('AI model testing environment'),
+          key: 'workspace_chat',
+          title: t('Chat'),
+          description: t('Workbench chat conversation page.'),
+        },
+        {
+          key: 'workspace_image',
+          title: t('Image generation'),
+          description: t('Workbench image generation page.'),
+        },
+        {
+          key: 'workspace_video',
+          title: t('Video generation'),
+          description: t('Workbench video generation page.'),
         },
         {
           key: 'chat',
-          title: t('Chat'),
-          description: t('Chat session management'),
+          title: t('Chat Presets'),
+          description: t('External chat client presets and quick links.'),
         },
       ],
     },

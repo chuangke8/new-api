@@ -336,6 +336,34 @@ func SetApiRouter(router *gin.Engine) {
 			prefillGroupRoute.DELETE("/:id", controller.DeletePrefillGroup)
 		}
 
+		workspaceChatRoute := apiRouter.Group("/workspace/chat")
+		workspaceChatRoute.Use(middleware.UserAuth())
+		{
+			workspaceChatRoute.GET("/models", controller.GetWorkspaceChatModels)
+			workspaceChatRoute.GET("/sessions", controller.ListWorkspaceChatSessions)
+			workspaceChatRoute.POST("/sessions", controller.CreateWorkspaceChatSession)
+			workspaceChatRoute.PUT("/sessions/:id", controller.UpdateWorkspaceChatSession)
+			workspaceChatRoute.DELETE("/sessions/:id", controller.DeleteWorkspaceChatSession)
+			workspaceChatRoute.POST("/sessions/:id/archive", controller.ArchiveWorkspaceChatSession)
+			workspaceChatRoute.POST("/sessions/:id/unarchive", controller.UnarchiveWorkspaceChatSession)
+			workspaceChatRoute.GET("/sessions/:id/messages", controller.ListWorkspaceChatMessages)
+			workspaceChatRoute.POST("/sessions/:id/messages", controller.CreateWorkspaceChatMessage)
+		}
+
+		workspaceChatAdminRoute := apiRouter.Group("/workspace/chat/admin")
+		workspaceChatAdminRoute.Use(middleware.AdminAuth())
+		{
+			workspaceChatAdminRoute.GET("/available-models", controller.AdminWorkspaceChatAvailableModels)
+			workspaceChatAdminRoute.GET("/categories", controller.AdminListWorkspaceChatCategories)
+			workspaceChatAdminRoute.POST("/categories", controller.AdminCreateWorkspaceChatCategory)
+			workspaceChatAdminRoute.PUT("/categories/:id", controller.AdminUpdateWorkspaceChatCategory)
+			workspaceChatAdminRoute.DELETE("/categories/:id", controller.AdminDeleteWorkspaceChatCategory)
+			workspaceChatAdminRoute.GET("/channels", controller.AdminListWorkspaceChatChannels)
+			workspaceChatAdminRoute.POST("/channels", controller.AdminCreateWorkspaceChatChannel)
+			workspaceChatAdminRoute.PUT("/channels/:id", controller.AdminUpdateWorkspaceChatChannel)
+			workspaceChatAdminRoute.DELETE("/channels/:id", controller.AdminDeleteWorkspaceChatChannel)
+		}
+
 		mjRoute := apiRouter.Group("/mj")
 		mjRoute.GET("/self", middleware.UserAuth(), controller.GetUserMidjourney)
 		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)

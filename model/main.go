@@ -281,6 +281,10 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&WorkspaceChatCategory{},
+		&WorkspaceChatChannel{},
+		&WorkspaceChatSession{},
+		&WorkspaceChatMessage{},
 	)
 	if err != nil {
 		return err
@@ -330,6 +334,10 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
+		{&WorkspaceChatCategory{}, "WorkspaceChatCategory"},
+		{&WorkspaceChatChannel{}, "WorkspaceChatChannel"},
+		{&WorkspaceChatSession{}, "WorkspaceChatSession"},
+		{&WorkspaceChatMessage{}, "WorkspaceChatMessage"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

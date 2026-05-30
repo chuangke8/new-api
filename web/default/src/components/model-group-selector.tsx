@@ -298,7 +298,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
           <Drawer open={open} onOpenChange={setOpen}>
             <DrawerTrigger asChild>
               <ModelTriggerButton
-                currentLabel={currentModel?.label || t('Model')}
+                currentLabel={
+                  currentModel?.label ||
+                  (models.length === 0 ? t('Model not found') : t('Model'))
+                }
                 triggerClassName={className}
                 isDisabled={disabled}
                 aria-expanded={open}
@@ -320,7 +323,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
             <PopoverTrigger
               render={
                 <ModelTriggerButton
-                  currentLabel={currentModel?.label || t('Model')}
+                  currentLabel={
+                    currentModel?.label ||
+                    (models.length === 0 ? t('Model not found') : t('Model'))
+                  }
                   triggerClassName={className}
                   isDisabled={disabled}
                   aria-expanded={open}

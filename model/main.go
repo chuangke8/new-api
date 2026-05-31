@@ -268,6 +268,7 @@ func migrateDB() error {
 		&TopUp{},
 		&QuotaData{},
 		&Task{},
+		&TaskCenter{},
 		&Model{},
 		&Vendor{},
 		&PrefillGroup{},
@@ -298,6 +299,7 @@ func migrateDB() error {
 			return err
 		}
 	}
+	BackfillTaskCenters(1000)
 	return nil
 }
 
@@ -321,6 +323,7 @@ func migrateDBFast() error {
 		{&TopUp{}, "TopUp"},
 		{&QuotaData{}, "QuotaData"},
 		{&Task{}, "Task"},
+		{&TaskCenter{}, "TaskCenter"},
 		{&Model{}, "Model"},
 		{&Vendor{}, "Vendor"},
 		{&PrefillGroup{}, "PrefillGroup"},
@@ -371,6 +374,7 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	BackfillTaskCenters(1000)
 	common.SysLog("database migrated")
 	return nil
 }

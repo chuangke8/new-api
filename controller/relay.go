@@ -594,6 +594,8 @@ func RelayTask(c *gin.Context) {
 		task.Action = relayInfo.Action
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
+		} else if taskRequest, err := relaycommon.GetTaskRequest(c); err == nil {
+			_ = model.UpdateTaskCenterRawRequest(task.TaskID, taskRequest)
 		}
 	}
 

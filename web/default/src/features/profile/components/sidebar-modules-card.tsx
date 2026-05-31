@@ -111,6 +111,11 @@ export function SidebarModulesCard() {
           title: t('Task Logs'),
           description: t('System task records'),
         },
+        {
+          key: 'task_center',
+          title: t('Task Center'),
+          description: t('Unified task management and generated content details.'),
+        },
       ],
     },
     {

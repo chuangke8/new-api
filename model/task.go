@@ -360,6 +360,9 @@ func GetByTaskIds(userId int, taskIds []any) ([]*Task, error) {
 func (Task *Task) Insert() error {
 	var err error
 	err = DB.Create(Task).Error
+	if err == nil {
+		_ = SyncTaskCenterFromTask(Task)
+	}
 	return err
 }
 
@@ -398,6 +401,9 @@ func (t *Task) Snapshot() taskSnapshot {
 func (Task *Task) Update() error {
 	var err error
 	err = DB.Save(Task).Error
+	if err == nil {
+		_ = SyncTaskCenterFromTask(Task)
+	}
 	return err
 }
 
@@ -413,7 +419,11 @@ func (t *Task) UpdateWithStatus(fromStatus TaskStatus) (bool, error) {
 	if result.Error != nil {
 		return false, result.Error
 	}
-	return result.RowsAffected > 0, nil
+	if result.RowsAffected > 0 {
+		_ = SyncTaskCenterFromTask(t)
+		return true, nil
+	}
+	return false, nil
 }
 
 // TaskBulkUpdate performs an unconditional bulk UPDATE by upstream task_id strings.

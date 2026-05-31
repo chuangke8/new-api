@@ -65,7 +65,28 @@ export default defineConfig(({ envMode }) => {
     },
     server: {
       host: '0.0.0.0',
+      htmlFallback: 'index',
       historyApiFallback: true,
+      setup: ({ server }) => {
+        return () => {
+          server.middlewares.use((req, _res, next) => {
+            const acceptsHtml =
+              typeof req.headers.accept === 'string' &&
+              (req.headers.accept.includes('text/html') ||
+                req.headers.accept.includes('*/*'))
+            const pathname = req.url?.split('?')[0] ?? ''
+            if (
+              (req.method === 'GET' || req.method === 'HEAD') &&
+              acceptsHtml &&
+              pathname !== '/' &&
+              !path.posix.extname(pathname)
+            ) {
+              req.url = '/index.html'
+            }
+            next()
+          })
+        }
+      },
       proxy: devProxy,
     },
     output: {

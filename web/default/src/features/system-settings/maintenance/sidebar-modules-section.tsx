@@ -122,6 +122,10 @@ export function SidebarModulesSection({
         title: t('Task logs'),
         description: t('Background job tracker for queued work.'),
       },
+      task_center: {
+        title: t('Task Center'),
+        description: t('Unified task management and generated content details.'),
+      },
     },
     personal: {
       topup: {

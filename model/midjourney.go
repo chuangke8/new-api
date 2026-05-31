@@ -148,12 +148,18 @@ func UpdateProgress(id int, progress string) error {
 func (midjourney *Midjourney) Insert() error {
 	var err error
 	err = DB.Create(midjourney).Error
+	if err == nil {
+		_ = SyncTaskCenterFromMidjourney(midjourney)
+	}
 	return err
 }
 
 func (midjourney *Midjourney) Update() error {
 	var err error
 	err = DB.Save(midjourney).Error
+	if err == nil {
+		_ = SyncTaskCenterFromMidjourney(midjourney)
+	}
 	return err
 }
 
@@ -167,7 +173,11 @@ func (midjourney *Midjourney) UpdateWithStatus(fromStatus string) (bool, error) 
 	if result.Error != nil {
 		return false, result.Error
 	}
-	return result.RowsAffected > 0, nil
+	if result.RowsAffected > 0 {
+		_ = SyncTaskCenterFromMidjourney(midjourney)
+		return true, nil
+	}
+	return false, nil
 }
 
 func MjBulkUpdate(mjIds []string, params map[string]any) error {

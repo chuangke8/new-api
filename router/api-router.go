@@ -317,6 +317,14 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
 
+		taskCenterRoute := apiRouter.Group("/task-center")
+		taskCenterRoute.Use(middleware.UserAuth())
+		{
+			taskCenterRoute.GET("/", controller.GetTaskCenter)
+			taskCenterRoute.GET("/:id", controller.GetTaskCenterDetail)
+			taskCenterRoute.PATCH("/:id/remark", controller.UpdateTaskCenterRemark)
+		}
+
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{
 			logRoute.GET("/token", middleware.TokenAuthReadOnly(), controller.GetLogByKey)

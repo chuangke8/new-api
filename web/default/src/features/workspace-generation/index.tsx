@@ -28,6 +28,7 @@ import {
   Trash2,
   Upload,
   Video,
+  X,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -99,6 +100,11 @@ type GenerationMappedPreset = WorkspaceMappedPreset & {
   en?: string
 }
 
+type UploadedImage = {
+  name: string
+  dataUrl: string
+}
+
 const localizedPresetLabels: Record<string, string> = {
   anime: 'Anime',
   auto: 'Auto',
@@ -159,6 +165,25 @@ function normalizeImageSource(item: GeneratedItem) {
   if (item.imageUrl) return item.imageUrl
   if (item.b64Json) return `data:image/png;base64,${item.b64Json}`
   return ''
+}
+
+function readImageFileAsDataUrl(file: File): Promise<UploadedImage> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      if (!result) {
+        reject(new Error('Failed to read image'))
+        return
+      }
+      resolve({
+        name: file.name,
+        dataUrl: result,
+      })
+    }
+    reader.onerror = () => reject(reader.error || new Error('Failed to read image'))
+    reader.readAsDataURL(file)
+  })
 }
 
 function videoPresetToMappedPreset(
@@ -296,6 +321,9 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
   const [duration, setDuration] = useState(VIDEO_DURATION_PRESETS[0])
   const [frameRate, setFrameRate] = useState(VIDEO_FRAME_RATE_PRESETS[0])
   const [count, setCount] = useState(1)
+  const [referenceImage, setReferenceImage] = useState<UploadedImage | null>(null)
+  const [firstFrameImage, setFirstFrameImage] = useState<UploadedImage | null>(null)
+  const [lastFrameImage, setLastFrameImage] = useState<UploadedImage | null>(null)
   const [seedEnabled, setSeedEnabled] = useState(false)
   const [seed, setSeed] = useState('')
   const [audioEnabled, setAudioEnabled] = useState(false)
@@ -488,6 +516,32 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
   ])
 
   useEffect(() => {
+    if (isImage) {
+      setFirstFrameImage(null)
+      setLastFrameImage(null)
+      if (!imageFeatureControls.reference_image_upload) {
+        setReferenceImage(null)
+      }
+      return
+    }
+    if (!videoFeatureControls.reference_image_upload) {
+      setReferenceImage(null)
+    }
+    if (!videoFeatureControls.first_frame_image) {
+      setFirstFrameImage(null)
+    }
+    if (!videoFeatureControls.last_frame_image) {
+      setLastFrameImage(null)
+    }
+  }, [
+    imageFeatureControls.reference_image_upload,
+    isImage,
+    videoFeatureControls.first_frame_image,
+    videoFeatureControls.last_frame_image,
+    videoFeatureControls.reference_image_upload,
+  ])
+
+  useEffect(() => {
     if (isImage) return
     const pending = items.filter(
       (item) =>
@@ -564,6 +618,10 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         const payload = {
           model: effectiveModel,
           prompt: prompt.trim(),
+          image:
+            imageFeatureControls.reference_image_upload && referenceImage
+              ? referenceImage.dataUrl
+              : undefined,
           n: count,
           size: imageFeatureControls.size_control ? size : undefined,
           quality: imageFeatureControls.quality_control ? quality : undefined,
@@ -612,9 +670,22 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
       if (videoFeatureControls.seed_control && seedEnabled && seed.trim()) {
         metadata.seed = seed.trim()
       }
+      if (videoFeatureControls.reference_image_upload && referenceImage) {
+        metadata.reference_image = referenceImage.dataUrl
+        metadata.reference_images = [referenceImage.dataUrl]
+      }
+      if (videoFeatureControls.last_frame_image && lastFrameImage) {
+        metadata.last_frame_image = lastFrameImage.dataUrl
+      }
       const response = await generateWorkspaceVideo({
         model: effectiveModel,
         prompt: prompt.trim(),
+        image:
+          videoFeatureControls.first_frame_image && firstFrameImage
+            ? firstFrameImage.dataUrl
+            : videoFeatureControls.reference_image_upload && referenceImage
+              ? referenceImage.dataUrl
+              : undefined,
         size: videoFeatureControls.resolution_control ? size : undefined,
         duration:
           videoFeatureControls.duration_control && Number.isFinite(durationNumber)
@@ -746,6 +817,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   count={count}
                   seedEnabled={seedEnabled}
                   seed={seed}
+                  referenceImage={referenceImage}
                   onSizeChange={setSize}
                   onRatioChange={setRatio}
                   onStyleChange={setStyle}
@@ -753,6 +825,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   onCountChange={setCount}
                   onSeedEnabledChange={setSeedEnabled}
                   onSeedChange={setSeed}
+                  onReferenceImageChange={setReferenceImage}
                   featureControls={imageFeatureControls}
                   sizePresets={imageSizePresets}
                   ratioPresets={imageRatioPresets}
@@ -771,6 +844,9 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   seedEnabled={seedEnabled}
                   seed={seed}
                   audioEnabled={audioEnabled}
+                  referenceImage={referenceImage}
+                  firstFrameImage={firstFrameImage}
+                  lastFrameImage={lastFrameImage}
                   featureControls={videoFeatureControls}
                   resolutionPresets={videoResolutionPresets}
                   ratioPresets={videoRatioPresets}
@@ -787,6 +863,9 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   onSeedEnabledChange={setSeedEnabled}
                   onSeedChange={setSeed}
                   onAudioEnabledChange={setAudioEnabled}
+                  onReferenceImageChange={setReferenceImage}
+                  onFirstFrameImageChange={setFirstFrameImage}
+                  onLastFrameImageChange={setLastFrameImage}
                 />
               )}
 
@@ -841,6 +920,7 @@ function ImageControls(props: {
   count: number
   seedEnabled: boolean
   seed: string
+  referenceImage: UploadedImage | null
   onSizeChange: (value: string) => void
   onRatioChange: (value: string) => void
   onStyleChange: (value: string) => void
@@ -848,12 +928,17 @@ function ImageControls(props: {
   onCountChange: (value: number) => void
   onSeedEnabledChange: (value: boolean) => void
   onSeedChange: (value: string) => void
+  onReferenceImageChange: (value: UploadedImage | null) => void
 }) {
   const { t } = useTranslation()
   return (
     <>
       {props.featureControls.reference_image_upload && (
-        <UploadField label={t('Reference image')} />
+        <UploadField
+          label={t('Reference image')}
+          value={props.referenceImage}
+          onChange={props.onReferenceImageChange}
+        />
       )}
       {(props.featureControls.size_control ||
         props.featureControls.ratio_control ||
@@ -930,6 +1015,9 @@ function VideoControls(props: {
   seedEnabled: boolean
   seed: string
   audioEnabled: boolean
+  referenceImage: UploadedImage | null
+  firstFrameImage: UploadedImage | null
+  lastFrameImage: UploadedImage | null
   onSizeChange: (value: string) => void
   onRatioChange: (value: string) => void
   onStyleChange: (value: string) => void
@@ -939,6 +1027,9 @@ function VideoControls(props: {
   onSeedEnabledChange: (value: boolean) => void
   onSeedChange: (value: string) => void
   onAudioEnabledChange: (value: boolean) => void
+  onReferenceImageChange: (value: UploadedImage | null) => void
+  onFirstFrameImageChange: (value: UploadedImage | null) => void
+  onLastFrameImageChange: (value: UploadedImage | null) => void
 }) {
   const { t } = useTranslation()
   return (
@@ -948,13 +1039,28 @@ function VideoControls(props: {
         props.featureControls.reference_image_upload) && (
         <div className='grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3'>
           {props.featureControls.first_frame_image && (
-            <UploadField label={t('First frame image')} compact />
+            <UploadField
+              label={t('First frame image')}
+              value={props.firstFrameImage}
+              onChange={props.onFirstFrameImageChange}
+              compact
+            />
           )}
           {props.featureControls.last_frame_image && (
-            <UploadField label={t('Last frame image')} compact />
+            <UploadField
+              label={t('Last frame image')}
+              value={props.lastFrameImage}
+              onChange={props.onLastFrameImageChange}
+              compact
+            />
           )}
           {props.featureControls.reference_image_upload && (
-            <UploadField label={t('Reference image')} compact />
+            <UploadField
+              label={t('Reference image')}
+              value={props.referenceImage}
+              onChange={props.onReferenceImageChange}
+              compact
+            />
           )}
         </div>
       )}
@@ -1245,10 +1351,16 @@ function MappedPresetSelect(props: {
   )
 }
 
-function UploadField(props: { label: string; compact?: boolean }) {
+function UploadField(props: {
+  label: string
+  compact?: boolean
+  value: UploadedImage | null
+  onChange: (value: UploadedImage | null) => void
+}) {
   const { t } = useTranslation()
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const [fileName, setFileName] = useState('')
+  const [isReading, setIsReading] = useState(false)
+  const fileName = props.value?.name || ''
   return (
     <div className='space-y-2'>
       <Label>{props.label}</Label>
@@ -1257,19 +1369,45 @@ function UploadField(props: { label: string; compact?: boolean }) {
         type='file'
         accept='image/*'
         className='hidden'
-        onChange={(event) =>
-          setFileName(event.currentTarget.files?.[0]?.name || '')
-        }
+        onChange={async (event) => {
+          const file = event.currentTarget.files?.[0]
+          event.currentTarget.value = ''
+          if (!file) return
+          setIsReading(true)
+          try {
+            props.onChange(await readImageFileAsDataUrl(file))
+          } catch (error) {
+            toast.error(getErrorMessage(error, t('Upload failed')))
+          } finally {
+            setIsReading(false)
+          }
+        }}
       />
-      <Button
-        type='button'
-        variant='outline'
-        className={cn('w-full justify-start', props.compact && 'px-2 text-xs')}
-        onClick={() => inputRef.current?.click()}
-      >
-        <Upload />
-        <span className='truncate'>{fileName || t('Upload image')}</span>
-      </Button>
+      <div className='flex gap-2'>
+        <Button
+          type='button'
+          variant='outline'
+          className={cn('min-w-0 flex-1 justify-start', props.compact && 'px-2 text-xs')}
+          disabled={isReading}
+          onClick={() => inputRef.current?.click()}
+        >
+          {isReading ? <Loader2 className='animate-spin' /> : <Upload />}
+          <span className='truncate'>
+            {fileName || (isReading ? t('Uploading...') : t('Upload image'))}
+          </span>
+        </Button>
+        {props.value && (
+          <Button
+            type='button'
+            variant='outline'
+            size='icon'
+            onClick={() => props.onChange(null)}
+            aria-label={t('Remove')}
+          >
+            <X />
+          </Button>
+        )}
+      </div>
     </div>
   )
 }

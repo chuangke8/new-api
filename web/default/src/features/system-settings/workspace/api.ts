@@ -171,6 +171,8 @@ export type WorkspaceVideoModelDto = {
 export type WorkspaceImageGenerationRequest = {
   model: string
   prompt: string
+  image?: string
+  images?: string[]
   n?: number
   size?: string
   quality?: string

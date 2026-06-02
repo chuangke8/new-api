@@ -42,6 +42,15 @@ func isPositiveOptionValue(value string) bool {
 	return err == nil && floatValue > 0
 }
 
+func isOneOf(value string, allowed ...string) bool {
+	for _, item := range allowed {
+		if value == item {
+			return true
+		}
+	}
+	return false
+}
+
 func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
 	if strings.TrimSpace(raw) == "" {
 		return
@@ -229,6 +238,36 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无效的主题值，可选值：default（新版前端）、classic（经典前端）",
 			})
+			return
+		}
+	case "theme.mode":
+		if !isOneOf(option.Value.(string), "system", "light", "dark") {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid theme mode"})
+			return
+		}
+	case "theme.preset":
+		if !isOneOf(option.Value.(string), "default", "anthropic", "simple-large", "underground", "rose-garden", "lake-view", "sunset-glow", "forest-whisper", "ocean-breeze", "lavender-dream") {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid theme preset"})
+			return
+		}
+	case "theme.font":
+		if !isOneOf(option.Value.(string), "default", "sans", "serif") {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid theme font"})
+			return
+		}
+	case "theme.radius":
+		if !isOneOf(option.Value.(string), "default", "none", "sm", "md", "lg", "xl") {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid theme radius"})
+			return
+		}
+	case "theme.scale":
+		if !isOneOf(option.Value.(string), "default", "sm", "lg", "xl") {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid theme scale"})
+			return
+		}
+	case "theme.content_layout":
+		if !isOneOf(option.Value.(string), "full", "centered") {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid theme content width"})
 			return
 		}
 	case "GroupRatio":

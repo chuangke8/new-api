@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Copy,
   Download,
@@ -75,6 +75,9 @@ import {
   VIDEO_RESOLUTION_PRESETS,
 } from '@/features/system-settings/workspace/config'
 import type { WorkspaceMappedPreset } from '@/features/system-settings/workspace/types'
+import { listTaskCenter } from '@/features/task-center/api'
+import type { TaskCenterRecord } from '@/features/task-center/types'
+import { formatUnixTime, parseDetail } from '@/features/task-center/utils'
 
 type GenerationKind = 'image' | 'video'
 
@@ -214,6 +217,20 @@ function defaultVideoFeatureControls(): WorkspaceVideoFeatureControlsDto {
   }
 }
 
+function generationStatusLabel(t: (key: string) => string, status: string) {
+  const labels: Record<string, string> = {
+    cancelled: 'Cancelled',
+    failed: 'Failed',
+    pending: 'Pending',
+    processing: 'Processing',
+    queued: 'Queued',
+    ready: 'Ready',
+    running: 'Running',
+    succeeded: 'Succeeded',
+  }
+  return t(labels[status] || status || '-')
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (typeof error === 'object' && error && 'response' in error) {
     const response = (error as { response?: { data?: unknown } }).response
@@ -265,6 +282,7 @@ export function WorkspaceVideoGeneration() {
 
 function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
   const { t, i18n } = useTranslation()
+  const queryClient = useQueryClient()
   const zhLanguage = isZhLanguage(i18n.language)
   const isImage = kind === 'image'
   const { data: imageModelsData } = useQuery({
@@ -287,20 +305,52 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     () => (videoModelsData || []).filter((item) => item.model),
     [videoModelsData]
   )
+  const imageModelGroups = useMemo(() => {
+    const groups = new Map<string, string>()
+    for (const item of imageModels) {
+      const key = String(item.category_id || item.category_name || 'default')
+      if (!groups.has(key)) {
+        groups.set(
+          key,
+          item.category_display ||
+            item.category_alias ||
+            item.category_name ||
+            t('Default')
+        )
+      }
+    }
+    return Array.from(groups.entries()).map(([value, label]) => ({
+      value,
+      label,
+    }))
+  }, [imageModels, t])
+  const [imageCategoryId, setImageCategoryId] = useState('')
+  const filteredImageModels = useMemo(
+    () =>
+      imageCategoryId
+        ? imageModels.filter(
+            (item) =>
+              String(item.category_id || item.category_name || 'default') ===
+              imageCategoryId
+          )
+        : imageModels,
+    [imageCategoryId, imageModels]
+  )
   const modelOptions = useMemo(
     () =>
       isImage
-        ? imageModels.map((item) => ({
+        ? filteredImageModels.map((item) => ({
             value: item.model,
             label: item.display_name || item.model_alias || item.model,
             category: item.category_display,
+            channelId: item.id,
           }))
         : videoModels.map((item) => ({
             value: item.model,
             label: item.display_name || item.model_alias || item.model,
             category: item.category_display,
           })),
-    [imageModels, isImage, videoModels]
+    [filteredImageModels, isImage, videoModels]
   )
   const fallbackModel = modelOptions[0]?.value || ''
   const [model, setModel] = useState(fallbackModel)
@@ -346,9 +396,13 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         ratio_control: true,
         style_control: true,
         quality_control: true,
+        negative_prompt: true,
+        seed_control: true,
+        batch_control: true,
       },
     [selectedImageModel?.feature_controls]
   )
+  const imageMaxBatchSize = Math.max(1, selectedImageModel?.max_batch_size || 4)
   const imageSizePresets = useMemo(
     () =>
       selectedImageModel
@@ -443,6 +497,32 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         : VIDEO_QUALITY_PRESETS,
     [selectedVideoModel]
   )
+  const imageHistoryQuery = useQuery({
+    queryKey: ['workspace-image-generation-history'],
+    queryFn: async () => {
+      const response = await listTaskCenter({
+        p: 1,
+        page_size: 12,
+        task_type: 'image',
+        submit_source: 'workspace',
+      })
+      if (!response.success) throw new Error(response.message)
+      return response.data.items || []
+    },
+    enabled: isImage,
+    refetchInterval: isImage && isGenerating ? 5000 : false,
+  })
+
+  useEffect(() => {
+    if (!isImage) return
+    if (imageModelGroups.length === 0) {
+      setImageCategoryId('')
+      return
+    }
+    if (!imageCategoryId || !imageModelGroups.some((item) => item.value === imageCategoryId)) {
+      setImageCategoryId(imageModelGroups[0].value)
+    }
+  }, [imageCategoryId, imageModelGroups, isImage])
 
   useEffect(() => {
     if (!fallbackModel) return
@@ -478,6 +558,28 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     imageStylePresets,
     isImage,
     selectedImageModel?.id,
+  ])
+
+  useEffect(() => {
+    if (!isImage) return
+    if (!imageFeatureControls.negative_prompt) {
+      setNegativePrompt('')
+    }
+    if (!imageFeatureControls.seed_control) {
+      setSeedEnabled(false)
+      setSeed('')
+    }
+    if (!imageFeatureControls.batch_control) {
+      setCount(1)
+      return
+    }
+    setCount((current) => Math.max(1, Math.min(imageMaxBatchSize, current)))
+  }, [
+    imageFeatureControls.batch_control,
+    imageFeatureControls.negative_prompt,
+    imageFeatureControls.seed_control,
+    imageMaxBatchSize,
+    isImage,
   ])
 
   useEffect(() => {
@@ -615,17 +717,36 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     setIsGenerating(true)
     try {
       if (kind === 'image') {
+        if (
+          imageFeatureControls.batch_control &&
+          count > imageMaxBatchSize
+        ) {
+          toast.error(
+            t('Generation count cannot exceed {{count}}', {
+              count: imageMaxBatchSize,
+            })
+          )
+          return
+        }
         const payload = {
           model: effectiveModel,
           prompt: prompt.trim(),
+          negative_prompt:
+            imageFeatureControls.negative_prompt && negativePrompt.trim()
+              ? negativePrompt.trim()
+              : undefined,
           image:
             imageFeatureControls.reference_image_upload && referenceImage
               ? referenceImage.dataUrl
               : undefined,
-          n: count,
+          n: imageFeatureControls.batch_control ? count : undefined,
           size: imageFeatureControls.size_control ? size : undefined,
           quality: imageFeatureControls.quality_control ? quality : undefined,
           style: imageFeatureControls.style_control ? style : undefined,
+          seed:
+            imageFeatureControls.seed_control && seedEnabled && seed.trim()
+              ? seed.trim()
+              : undefined,
           response_format: 'url' as const,
         }
         const response = await generateWorkspaceImage(payload)
@@ -651,6 +772,9 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
           quality,
         }))
         setItems((current) => [...nextItems, ...current])
+        await queryClient.invalidateQueries({
+          queryKey: ['workspace-image-generation-history'],
+        })
         toast.success(t('Image generated'))
         return
       }
@@ -750,7 +874,35 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
               </CardTitle>
             </CardHeader>
             <CardContent className='space-y-4'>
-              <Field label={t('Model')}>
+              {isImage && (
+                <Field label={t('Model group')}>
+                  <Select
+                    value={imageCategoryId || '__empty__'}
+                    onValueChange={(value) =>
+                      value && value !== '__empty__' && setImageCategoryId(value)
+                    }
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue placeholder={t('Model not found')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {imageModelGroups.length > 0 ? (
+                        imageModelGroups.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value='__empty__' disabled>
+                          {t('Model not found')}
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+
+              <Field label={isImage ? t('Model channel') : t('Model')}>
                 <Select
                   value={effectiveModel || '__empty__'}
                   onValueChange={(value) =>
@@ -796,7 +948,9 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                 />
               </Field>
 
-              {(kind === 'image' || videoFeatureControls.negative_prompt) && (
+              {(isImage
+                ? imageFeatureControls.negative_prompt
+                : videoFeatureControls.negative_prompt) && (
                 <Field label={t('Negative prompt')}>
                   <Textarea
                     className='min-h-16 resize-none'
@@ -831,6 +985,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   ratioPresets={imageRatioPresets}
                   stylePresets={imageStylePresets}
                   qualityPresets={imageQualityPresets}
+                  maxBatchSize={imageMaxBatchSize}
                 />
               ) : (
                 <VideoControls
@@ -901,6 +1056,40 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
             }}
           />
         </div>
+        {isImage && (
+          <div className='min-h-0 overflow-y-auto lg:w-[320px] xl:w-[360px]'>
+            <ImageGenerationHistory
+              records={imageHistoryQuery.data || []}
+              loading={imageHistoryQuery.isLoading}
+              onRestore={(record) => {
+                const detail = parseDetail(record.detail)
+                if (detail.prompt || detail.input_text) {
+                  setPrompt(detail.prompt || detail.input_text || '')
+                }
+                if (detail.negative_prompt) {
+                  setNegativePrompt(detail.negative_prompt)
+                }
+                if (record.model) {
+                  const matched = imageModels.find(
+                    (item) =>
+                      item.model === record.model ||
+                      item.model_alias === record.model ||
+                      item.display_name === record.model
+                  )
+                  if (matched) {
+                    setImageCategoryId(
+                      String(
+                        matched.category_id || matched.category_name || 'default'
+                      )
+                    )
+                    setModel(matched.model)
+                  }
+                }
+                toast.info(t('Parameters restored for regeneration'))
+              }}
+            />
+          </div>
+        )}
       </div>
     </Main>
   )
@@ -918,6 +1107,7 @@ function ImageControls(props: {
   style: string
   quality: string
   count: number
+  maxBatchSize: number
   seedEnabled: boolean
   seed: string
   referenceImage: UploadedImage | null
@@ -981,19 +1171,117 @@ function ImageControls(props: {
           )}
         </div>
       )}
-      <Field label={t('Generation count')}>
-        <Input
-          type='number'
-          min={1}
-          max={4}
-          value={props.count}
-          onChange={(event) =>
-            props.onCountChange(Math.max(1, Math.min(4, Number(event.target.value))))
-          }
-        />
-      </Field>
-      <SeedField {...props} />
+      {props.featureControls.batch_control && (
+        <Field label={t('Generation count')}>
+          <Input
+            type='number'
+            min={1}
+            max={props.maxBatchSize}
+            value={props.count}
+            onChange={(event) =>
+              props.onCountChange(
+                Math.max(
+                  1,
+                  Math.min(props.maxBatchSize, Number(event.target.value))
+                )
+              )
+            }
+          />
+        </Field>
+      )}
+      {props.featureControls.seed_control && <SeedField {...props} />}
     </>
+  )
+}
+
+function ImageGenerationHistory(props: {
+  records: TaskCenterRecord[]
+  loading: boolean
+  onRestore: (record: TaskCenterRecord) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <Card className='rounded-lg'>
+      <CardHeader>
+        <CardTitle className='text-base'>{t('Generation history')}</CardTitle>
+      </CardHeader>
+      <CardContent className='space-y-3'>
+        {props.loading ? (
+          <div className='text-muted-foreground flex h-32 items-center justify-center gap-2 text-sm'>
+            <Loader2 className='size-4 animate-spin' />
+            {t('Loading...')}
+          </div>
+        ) : props.records.length === 0 ? (
+          <div className='text-muted-foreground flex h-32 items-center justify-center text-center text-sm'>
+            {t('No image generation history')}
+          </div>
+        ) : (
+          props.records.map((record) => (
+            <ImageHistoryCard
+              key={record.id}
+              record={record}
+              onRestore={() => props.onRestore(record)}
+            />
+          ))
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ImageHistoryCard(props: {
+  record: TaskCenterRecord
+  onRestore: () => void
+}) {
+  const { t } = useTranslation()
+  const detail = parseDetail(props.record.detail)
+  const imageUrl = detail.images?.[0] || ''
+  const prompt = detail.prompt || detail.input_text || ''
+  return (
+    <div className='border-border overflow-hidden rounded-lg border'>
+      <div className='bg-muted/30 flex aspect-video items-center justify-center overflow-hidden'>
+        {imageUrl ? (
+          <img src={imageUrl} alt={prompt} className='size-full object-cover' />
+        ) : (
+          <ImagePlus className='text-muted-foreground size-8' />
+        )}
+      </div>
+      <div className='space-y-2 p-3'>
+        <div className='line-clamp-2 text-sm font-medium'>{prompt || '-'}</div>
+        <div className='text-muted-foreground space-y-1 text-xs'>
+          <div>{props.record.model || '-'}</div>
+          <div>
+            {t('Status')}: {generationStatusLabel(t, props.record.status)}
+          </div>
+          <div>{formatUnixTime(props.record.submitted_at)}</div>
+        </div>
+        <div className='flex gap-2'>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            className='flex-1'
+            onClick={props.onRestore}
+          >
+            <RefreshCw className='size-4' />
+            {t('Regenerate')}
+          </Button>
+          {prompt && (
+            <Button
+              type='button'
+              variant='outline'
+              size='icon-sm'
+              onClick={() => {
+                navigator.clipboard?.writeText(prompt)
+                toast.success(t('Prompt copied'))
+              }}
+            >
+              <Copy className='size-4' />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1249,7 +1537,7 @@ function ResultCard(props: {
           {props.item.taskId && (
             <div className='text-muted-foreground text-xs'>
               {t('Task ID')}: {props.item.taskId} / {t('Status')}:{' '}
-              {props.item.status}
+              {generationStatusLabel(t, props.item.status)}
             </div>
           )}
         </div>

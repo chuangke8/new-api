@@ -26,6 +26,21 @@ import {
 } from '@/stores/system-config-store'
 import { DEFAULT_SYSTEM_NAME, DEFAULT_LOGO } from '@/lib/constants'
 import { applyFaviconToDom } from '@/lib/dom-utils'
+import {
+  CONTENT_LAYOUT_VALUES,
+  DEFAULT_THEME_DEFAULTS,
+  THEME_FONT_VALUES,
+  THEME_PRESET_VALUES,
+  THEME_RADIUS_VALUES,
+  THEME_SCALE_VALUES,
+  type ContentLayout,
+  type ThemeDefaults,
+  type ThemeFont,
+  type ThemeMode,
+  type ThemePreset,
+  type ThemeRadius,
+  type ThemeScale,
+} from '@/lib/theme-customization'
 
 interface UseSystemConfigOptions {
   /** Automatically fetch config from backend (use only in root component) */
@@ -46,6 +61,14 @@ interface StatusApiResponse {
     usd_exchange_rate?: number
     custom_currency_symbol?: string
     custom_currency_exchange_rate?: number
+    theme_defaults?: Partial<{
+      mode: string
+      preset: string
+      font: string
+      radius: string
+      scale: string
+      content_layout: string
+    }>
   }
 }
 
@@ -56,6 +79,61 @@ function toNumber(value: unknown, fallback: number): number {
     if (!Number.isNaN(parsed)) return parsed
   }
   return fallback
+}
+
+function pickAllowed<T extends string>(
+  value: unknown,
+  allowed: ReadonlySet<T>,
+  fallback: T
+): T {
+  return typeof value === 'string' && allowed.has(value as T)
+    ? (value as T)
+    : fallback
+}
+
+const THEME_MODE_VALUES: ReadonlySet<ThemeMode> = new Set([
+  'system',
+  'light',
+  'dark',
+])
+
+function mapThemeDefaults(
+  defaults: StatusApiResponse['data']['theme_defaults'] | undefined
+): ThemeDefaults {
+  if (!defaults) return DEFAULT_THEME_DEFAULTS
+
+  return {
+    mode: pickAllowed<ThemeMode>(
+      defaults.mode,
+      THEME_MODE_VALUES,
+      DEFAULT_THEME_DEFAULTS.mode
+    ),
+    preset: pickAllowed<ThemePreset>(
+      defaults.preset,
+      THEME_PRESET_VALUES,
+      DEFAULT_THEME_DEFAULTS.preset
+    ),
+    font: pickAllowed<ThemeFont>(
+      defaults.font,
+      THEME_FONT_VALUES,
+      DEFAULT_THEME_DEFAULTS.font
+    ),
+    radius: pickAllowed<ThemeRadius>(
+      defaults.radius,
+      THEME_RADIUS_VALUES,
+      DEFAULT_THEME_DEFAULTS.radius
+    ),
+    scale: pickAllowed<ThemeScale>(
+      defaults.scale,
+      THEME_SCALE_VALUES,
+      DEFAULT_THEME_DEFAULTS.scale
+    ),
+    contentLayout: pickAllowed<ContentLayout>(
+      defaults.content_layout,
+      CONTENT_LAYOUT_VALUES,
+      DEFAULT_THEME_DEFAULTS.contentLayout
+    ),
+  }
 }
 
 /**
@@ -98,6 +176,7 @@ export function mapStatusDataToConfig(
     demoSiteEnabled: data.demo_site_enabled,
     displayTokenStatEnabled: data.display_token_stat_enabled,
     currency,
+    themeDefaults: mapThemeDefaults(data.theme_defaults),
   }
 }
 

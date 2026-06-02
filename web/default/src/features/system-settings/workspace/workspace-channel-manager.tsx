@@ -228,16 +228,23 @@ function fromImageCategoryDto(
 }
 
 function fromImageChannelDto(channel: WorkspaceImageChannelDto): WorkspaceChannel {
-  const controls = parseMaybeJson<WorkspaceImageFeatureControlsDto>(
-    channel.feature_controls,
-    {
-      reference_image_upload: true,
-      size_control: true,
-      ratio_control: true,
-      style_control: true,
-      quality_control: true,
-    }
-  )
+  const defaultControls: WorkspaceImageFeatureControlsDto = {
+    reference_image_upload: true,
+    size_control: true,
+    ratio_control: true,
+    style_control: true,
+    quality_control: true,
+    negative_prompt: true,
+    seed_control: true,
+    batch_control: true,
+  }
+  const controls = {
+    ...defaultControls,
+    ...parseMaybeJson<WorkspaceImageFeatureControlsDto>(
+      channel.feature_controls,
+      defaultControls
+    ),
+  }
   const sizePresets = parseMaybeJson<WorkspaceImagePresetDto[]>(
     channel.size_presets,
     []
@@ -264,12 +271,16 @@ function fromImageChannelDto(channel: WorkspaceImageChannelDto): WorkspaceChanne
     ratioPresets: ratioPresets.map((item) => item.value).filter(Boolean),
     stylePresets: stylePresets.map(fromImagePresetDto),
     qualityPresets: qualityPresets.map(fromImagePresetDto),
+    maxBatchSize: channel.max_batch_size || 4,
     capabilities: {
       referenceImage: controls.reference_image_upload,
       sizeControl: controls.size_control,
       ratioControl: controls.ratio_control,
       styleControl: controls.style_control,
       qualityControl: controls.quality_control,
+      negativePrompt: controls.negative_prompt,
+      seedControl: controls.seed_control,
+      batchControl: controls.batch_control,
     } as WorkspaceChannel['capabilities'],
     disabled: channel.disabled,
     remark: channel.remark,
@@ -422,7 +433,11 @@ function toImageChannelDto(channel: WorkspaceChannel) {
       ratio_control: Boolean(channel.capabilities.ratioControl),
       style_control: Boolean(channel.capabilities.styleControl),
       quality_control: Boolean(channel.capabilities.qualityControl),
+      negative_prompt: Boolean(channel.capabilities.negativePrompt),
+      seed_control: Boolean(channel.capabilities.seedControl),
+      batch_control: Boolean(channel.capabilities.batchControl),
     },
+    max_batch_size: Math.max(1, Number(channel.maxBatchSize || 1)),
     size_presets: (channel.sizePresets || []).map(stringPresetToDto),
     ratio_presets: (channel.ratioPresets || []).map(stringPresetToDto),
     style_presets: (channel.stylePresets || []).map(toImagePresetDto),
@@ -1175,6 +1190,25 @@ function WorkspaceChannelsTable(props: {
         size: 140,
       },
       ...presetColumns,
+      ...(props.kind === 'image'
+        ? [
+            {
+              accessorKey: 'maxBatchSize',
+              header: ({ column }) => (
+                <DataTableColumnHeader
+                  column={column}
+                  title={t('Max generation count')}
+                />
+              ),
+              cell: ({ row }) => (
+                <span className='font-medium tabular-nums'>
+                  {row.original.maxBatchSize || 1}
+                </span>
+              ),
+              size: 120,
+            } satisfies ColumnDef<WorkspaceChannel>,
+          ]
+        : []),
       {
         id: 'capabilities',
         header: () => t('Feature controls'),
@@ -1645,6 +1679,22 @@ function ChannelDialog(props: {
                 </SelectContent>
               </Select>
             </Field>
+            {kind === 'image' && (
+              <Field label={t('Max generation count')}>
+                <Input
+                  type='number'
+                  min={1}
+                  max={100}
+                  value={draft.maxBatchSize || 1}
+                  onChange={(event) =>
+                    setDraft({
+                      ...draft,
+                      maxBatchSize: Math.max(1, Number(event.target.value)),
+                    })
+                  }
+                />
+              </Field>
+            )}
           </div>
           <div className='space-y-3'>
             <Label>{t('Feature controls')}</Label>

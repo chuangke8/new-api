@@ -72,6 +72,9 @@ export type WorkspaceImageFeatureControlsDto = {
   ratio_control: boolean
   style_control: boolean
   quality_control: boolean
+  negative_prompt: boolean
+  seed_control: boolean
+  batch_control: boolean
 }
 
 export type WorkspaceImageCategoryDto = WorkspaceChatCategoryDto
@@ -83,6 +86,7 @@ export type WorkspaceImageChannelDto = {
   model_alias: string
   category_id: number
   feature_controls: string | WorkspaceImageFeatureControlsDto
+  max_batch_size: number
   size_presets: string | WorkspaceImagePresetDto[]
   ratio_presets: string | WorkspaceImagePresetDto[]
   style_presets: string | WorkspaceImagePresetDto[]
@@ -104,6 +108,7 @@ export type WorkspaceImageModelDto = {
   category_alias: string
   category_display: string
   feature_controls: WorkspaceImageFeatureControlsDto
+  max_batch_size: number
   size_presets: WorkspaceImagePresetDto[]
   ratio_presets: WorkspaceImagePresetDto[]
   style_presets: WorkspaceImagePresetDto[]
@@ -171,6 +176,7 @@ export type WorkspaceVideoModelDto = {
 export type WorkspaceImageGenerationRequest = {
   model: string
   prompt: string
+  negative_prompt?: string
   image?: string
   images?: string[]
   n?: number
@@ -178,6 +184,7 @@ export type WorkspaceImageGenerationRequest = {
   quality?: string
   response_format?: 'url' | 'b64_json'
   style?: string
+  seed?: string | number
 }
 
 export type WorkspaceImageGenerationData = {

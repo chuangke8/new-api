@@ -29,6 +29,7 @@ export type WorkspaceCapabilityKey =
   | 'ratioControl'
   | 'styleControl'
   | 'qualityControl'
+  | 'batchControl'
   | 'firstFrame'
   | 'lastFrame'
   | 'durationControl'
@@ -56,6 +57,7 @@ export type WorkspaceChannel = {
   ratioPresets?: string[]
   stylePresets?: WorkspaceMappedPreset[]
   qualityPresets?: WorkspaceMappedPreset[]
+  maxBatchSize?: number
   durationPresets?: string[]
   frameRatePresets?: string[]
   capabilities: Record<WorkspaceCapabilityKey, boolean>

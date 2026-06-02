@@ -24,12 +24,22 @@ import {
   useMemo,
   useState,
 } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import i18next from 'i18next'
+import { toast } from 'sonner'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+import { useIsAdmin } from '@/hooks/use-admin'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
+import {
+  DEFAULT_THEME_DEFAULTS,
+  type ThemeMode,
+} from '@/lib/theme-customization'
+import { updateSystemOption } from '@/features/system-settings/api'
 
-type Theme = 'dark' | 'light' | 'system'
+type Theme = ThemeMode
 type ResolvedTheme = Exclude<Theme, 'system'>
 
-const DEFAULT_THEME = 'system'
+const DEFAULT_THEME = DEFAULT_THEME_DEFAULTS.mode
 const THEME_COOKIE_NAME = 'vite-ui-theme'
 const THEME_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
 const THEMES = new Set<Theme>(['dark', 'light', 'system'])
@@ -76,16 +86,28 @@ function getStoredTheme(storageKey: string, fallback: Theme): Theme {
 
 export function ThemeProvider({
   children,
-  defaultTheme = DEFAULT_THEME,
+  defaultTheme,
   storageKey = THEME_COOKIE_NAME,
   ...props
 }: ThemeProviderProps) {
+  const isAdmin = useIsAdmin()
+  const queryClient = useQueryClient()
+  const setConfig = useSystemConfigStore((state) => state.setConfig)
+  const configuredDefaultTheme = useSystemConfigStore(
+    (state) => state.config.themeDefaults.mode
+  )
+  const resolvedDefaultTheme = defaultTheme ?? configuredDefaultTheme
   const [theme, _setTheme] = useState<Theme>(() =>
-    getStoredTheme(storageKey, defaultTheme)
+    getStoredTheme(storageKey, resolvedDefaultTheme)
   )
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    resolveTheme(getStoredTheme(storageKey, defaultTheme))
+    resolveTheme(getStoredTheme(storageKey, resolvedDefaultTheme))
   )
+
+  useEffect(() => {
+    if (getCookie(storageKey)) return
+    _setTheme(resolvedDefaultTheme)
+  }, [resolvedDefaultTheme, storageKey])
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -107,26 +129,50 @@ export function ThemeProvider({
 
   const setTheme = useCallback(
     (theme: Theme) => {
-      setCookie(storageKey, theme, THEME_COOKIE_MAX_AGE)
+      if (isAdmin) {
+        setCookie(storageKey, theme, THEME_COOKIE_MAX_AGE)
+        setConfig({
+          themeDefaults: {
+            ...useSystemConfigStore.getState().config.themeDefaults,
+            mode: theme,
+          },
+        })
+        void updateSystemOption({ key: 'theme.mode', value: theme })
+          .then((res) => {
+            if (!res.success) {
+              toast.error(res.message || i18next.t('Failed to update setting'))
+            }
+            queryClient.invalidateQueries({ queryKey: ['status'] })
+            queryClient.invalidateQueries({ queryKey: ['system-options'] })
+            window.localStorage.removeItem('status')
+          })
+          .catch((error: Error) => {
+            toast.error(error.message || i18next.t('Failed to update setting'))
+          })
+      } else if (theme === resolvedDefaultTheme) {
+        removeCookie(storageKey)
+      } else {
+        setCookie(storageKey, theme, THEME_COOKIE_MAX_AGE)
+      }
       _setTheme(theme)
     },
-    [storageKey]
+    [isAdmin, queryClient, resolvedDefaultTheme, setConfig, storageKey]
   )
 
   const resetTheme = useCallback(() => {
     removeCookie(storageKey)
-    _setTheme(defaultTheme)
-  }, [defaultTheme, storageKey])
+    _setTheme(resolvedDefaultTheme)
+  }, [resolvedDefaultTheme, storageKey])
 
   const contextValue = useMemo(
     () => ({
-      defaultTheme,
+      defaultTheme: resolvedDefaultTheme,
       resolvedTheme,
       resetTheme,
       theme,
       setTheme,
     }),
-    [defaultTheme, resolvedTheme, resetTheme, theme, setTheme]
+    [resolvedDefaultTheme, resolvedTheme, resetTheme, theme, setTheme]
   )
 
   return (

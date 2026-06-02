@@ -19,12 +19,20 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+import type { ThemeDefaults } from '@/lib/theme-customization'
 import { updateSystemOption } from '../api'
 import type { UpdateOptionRequest } from '../types'
 
 // Configuration keys that require status refresh
 const STATUS_RELATED_KEYS = [
   'theme.frontend',
+  'theme.mode',
+  'theme.preset',
+  'theme.font',
+  'theme.radius',
+  'theme.scale',
+  'theme.content_layout',
   'HeaderNavModules',
   'SidebarModulesAdmin',
   'Notice',
@@ -37,6 +45,27 @@ const STATUS_RELATED_KEYS = [
   'general_setting.custom_currency_symbol',
   'general_setting.custom_currency_exchange_rate',
 ]
+
+const THEME_DEFAULT_KEY_MAP: Partial<Record<string, keyof ThemeDefaults>> = {
+  'theme.mode': 'mode',
+  'theme.preset': 'preset',
+  'theme.font': 'font',
+  'theme.radius': 'radius',
+  'theme.scale': 'scale',
+  'theme.content_layout': 'contentLayout',
+}
+
+function syncThemeDefaultToStore(key: string, value: string | boolean | number) {
+  const field = THEME_DEFAULT_KEY_MAP[key]
+  if (!field || typeof value !== 'string') return
+
+  useSystemConfigStore.getState().setConfig({
+    themeDefaults: {
+      ...useSystemConfigStore.getState().config.themeDefaults,
+      [field]: value,
+    },
+  })
+}
 
 export function useUpdateOption() {
   const queryClient = useQueryClient()
@@ -51,6 +80,7 @@ export function useUpdateOption() {
         // If updating frontend-display-related config, also refresh status
         if (STATUS_RELATED_KEYS.includes(variables.key)) {
           queryClient.invalidateQueries({ queryKey: ['status'] })
+          syncThemeDefaultToStore(variables.key, variables.value)
           try {
             window.localStorage.removeItem('status')
           } catch {

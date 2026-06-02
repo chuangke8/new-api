@@ -28,6 +28,7 @@ type WorkspaceImageChannel struct {
 	ModelAlias      string `json:"model_alias" gorm:"type:varchar(255);default:''"`
 	CategoryId      int    `json:"category_id" gorm:"index;not null"`
 	FeatureControls string `json:"feature_controls" gorm:"type:text"`
+	MaxBatchSize    int    `json:"max_batch_size" gorm:"default:4"`
 	SizePresets     string `json:"size_presets" gorm:"type:text"`
 	RatioPresets    string `json:"ratio_presets" gorm:"type:text"`
 	StylePresets    string `json:"style_presets" gorm:"type:text"`
@@ -53,6 +54,9 @@ type WorkspaceImageFeatureControls struct {
 	RatioControl         bool `json:"ratio_control"`
 	StyleControl         bool `json:"style_control"`
 	QualityControl       bool `json:"quality_control"`
+	NegativePrompt       bool `json:"negative_prompt"`
+	SeedControl          bool `json:"seed_control"`
+	BatchControl         bool `json:"batch_control"`
 }
 
 type WorkspaceImageModel struct {
@@ -65,6 +69,7 @@ type WorkspaceImageModel struct {
 	CategoryAlias   string                        `json:"category_alias"`
 	CategoryDisplay string                        `json:"category_display"`
 	FeatureControls WorkspaceImageFeatureControls `json:"feature_controls"`
+	MaxBatchSize    int                           `json:"max_batch_size"`
 	SizePresets     []WorkspaceImagePreset        `json:"size_presets"`
 	RatioPresets    []WorkspaceImagePreset        `json:"ratio_presets"`
 	StylePresets    []WorkspaceImagePreset        `json:"style_presets"`
@@ -78,6 +83,9 @@ func defaultWorkspaceImageFeatureControls() WorkspaceImageFeatureControls {
 		RatioControl:         true,
 		StyleControl:         true,
 		QualityControl:       true,
+		NegativePrompt:       true,
+		SeedControl:          true,
+		BatchControl:         true,
 	}
 }
 
@@ -222,6 +230,9 @@ func CreateWorkspaceImageChannel(channel *WorkspaceImageChannel) error {
 	channel.Model = strings.TrimSpace(channel.Model)
 	channel.ModelAlias = strings.TrimSpace(channel.ModelAlias)
 	channel.Remark = strings.TrimSpace(channel.Remark)
+	if channel.MaxBatchSize <= 0 {
+		channel.MaxBatchSize = 4
+	}
 	channel.CreatedTime = now
 	channel.UpdatedTime = now
 	if strings.TrimSpace(channel.FeatureControls) == "" {
@@ -234,6 +245,9 @@ func UpdateWorkspaceImageChannel(channel *WorkspaceImageChannel) error {
 	channel.Model = strings.TrimSpace(channel.Model)
 	channel.ModelAlias = strings.TrimSpace(channel.ModelAlias)
 	channel.Remark = strings.TrimSpace(channel.Remark)
+	if channel.MaxBatchSize <= 0 {
+		channel.MaxBatchSize = 4
+	}
 	channel.UpdatedTime = common.GetTimestamp()
 	return DB.Model(&WorkspaceImageChannel{}).Where("id = ?", channel.Id).Updates(map[string]interface{}{
 		"weight":           channel.Weight,
@@ -241,6 +255,7 @@ func UpdateWorkspaceImageChannel(channel *WorkspaceImageChannel) error {
 		"model_alias":      channel.ModelAlias,
 		"category_id":      channel.CategoryId,
 		"feature_controls": channel.FeatureControls,
+		"max_batch_size":   channel.MaxBatchSize,
 		"size_presets":     channel.SizePresets,
 		"ratio_presets":    channel.RatioPresets,
 		"style_presets":    channel.StylePresets,
@@ -253,6 +268,44 @@ func UpdateWorkspaceImageChannel(channel *WorkspaceImageChannel) error {
 
 func DeleteWorkspaceImageChannel(id int) error {
 	return DB.Delete(&WorkspaceImageChannel{}, id).Error
+}
+
+func workspaceImageChannelToModel(channel WorkspaceImageChannel) WorkspaceImageModel {
+	displayName := channel.ModelAlias
+	if displayName == "" {
+		displayName = channel.Model
+	}
+	categoryName := ""
+	categoryAlias := ""
+	categoryDisplay := ""
+	if channel.Category != nil {
+		categoryName = channel.Category.Name
+		categoryAlias = channel.Category.Alias
+		categoryDisplay = categoryAlias
+		if categoryDisplay == "" {
+			categoryDisplay = categoryName
+		}
+	}
+	maxBatchSize := channel.MaxBatchSize
+	if maxBatchSize <= 0 {
+		maxBatchSize = 4
+	}
+	return WorkspaceImageModel{
+		Id:              channel.Id,
+		Model:           channel.Model,
+		ModelAlias:      channel.ModelAlias,
+		DisplayName:     displayName,
+		CategoryId:      channel.CategoryId,
+		CategoryName:    categoryName,
+		CategoryAlias:   categoryAlias,
+		CategoryDisplay: categoryDisplay,
+		FeatureControls: workspaceImageFeatureControlsFromString(channel.FeatureControls),
+		MaxBatchSize:    maxBatchSize,
+		SizePresets:     workspaceImagePresetsFromString(channel.SizePresets),
+		RatioPresets:    workspaceImagePresetsFromString(channel.RatioPresets),
+		StylePresets:    workspaceImagePresetsFromString(channel.StylePresets),
+		QualityPresets:  workspaceImagePresetsFromString(channel.QualityPresets),
+	}
 }
 
 func GetWorkspaceImageModels() ([]WorkspaceImageModel, error) {
@@ -273,38 +326,23 @@ func GetWorkspaceImageModels() ([]WorkspaceImageModel, error) {
 		if channel.Category != nil && channel.Category.Disabled {
 			continue
 		}
-		displayName := channel.ModelAlias
-		if displayName == "" {
-			displayName = channel.Model
-		}
-		categoryName := ""
-		categoryAlias := ""
-		categoryDisplay := ""
-		if channel.Category != nil {
-			categoryName = channel.Category.Name
-			categoryAlias = channel.Category.Alias
-			categoryDisplay = categoryAlias
-			if categoryDisplay == "" {
-				categoryDisplay = categoryName
-			}
-		}
-		models = append(models, WorkspaceImageModel{
-			Id:              channel.Id,
-			Model:           channel.Model,
-			ModelAlias:      channel.ModelAlias,
-			DisplayName:     displayName,
-			CategoryId:      channel.CategoryId,
-			CategoryName:    categoryName,
-			CategoryAlias:   categoryAlias,
-			CategoryDisplay: categoryDisplay,
-			FeatureControls: workspaceImageFeatureControlsFromString(channel.FeatureControls),
-			SizePresets:     workspaceImagePresetsFromString(channel.SizePresets),
-			RatioPresets:    workspaceImagePresetsFromString(channel.RatioPresets),
-			StylePresets:    workspaceImagePresetsFromString(channel.StylePresets),
-			QualityPresets:  workspaceImagePresetsFromString(channel.QualityPresets),
-		})
+		models = append(models, workspaceImageChannelToModel(channel))
 	}
 	return models, nil
+}
+
+func GetWorkspaceImageModel(modelName string) (*WorkspaceImageModel, error) {
+	var channel WorkspaceImageChannel
+	if err := DB.Preload("Category").
+		Where("model = ? AND disabled = ?", strings.TrimSpace(modelName), false).
+		First(&channel).Error; err != nil {
+		return nil, err
+	}
+	if channel.Category != nil && channel.Category.Disabled {
+		return nil, errors.New("category is disabled")
+	}
+	model := workspaceImageChannelToModel(channel)
+	return &model, nil
 }
 
 func GetWorkspaceImageAvailableModels() []string {

@@ -80,6 +80,7 @@ export const THEME_PRESETS = [
 ] as const
 
 export type ThemePreset = (typeof THEME_PRESETS)[number]['value']
+export type ThemeMode = 'dark' | 'light' | 'system'
 export type ThemeRadius = 'default' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
 export type ThemeScale = 'default' | 'sm' | 'lg' | 'xl'
 export type ContentLayout = 'full' | 'centered'
@@ -115,12 +116,21 @@ export type ThemeCustomization = {
   contentLayout: ContentLayout
 }
 
+export type ThemeDefaults = ThemeCustomization & {
+  mode: ThemeMode
+}
+
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
   preset: 'default',
   font: 'default',
   radius: 'default',
   scale: 'default',
   contentLayout: 'full',
+}
+
+export const DEFAULT_THEME_DEFAULTS: ThemeDefaults = {
+  mode: 'system',
+  ...DEFAULT_THEME_CUSTOMIZATION,
 }
 
 export const THEME_PRESET_VALUES = new Set(

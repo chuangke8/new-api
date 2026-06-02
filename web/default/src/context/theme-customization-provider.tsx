@@ -24,6 +24,11 @@ import {
   useMemo,
   useState,
 } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import i18next from 'i18next'
+import { toast } from 'sonner'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+import { useIsAdmin } from '@/hooks/use-admin'
 import { getCookie, removeCookie, setCookie } from '@/lib/cookies'
 import {
   CONTENT_LAYOUT_VALUES,
@@ -41,6 +46,7 @@ import {
   type ThemeRadius,
   type ThemeScale,
 } from '@/lib/theme-customization'
+import { updateSystemOption } from '@/features/system-settings/api'
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
 
@@ -96,41 +102,86 @@ const ThemeCustomizationContext =
 export function ThemeCustomizationProvider(props: {
   children: React.ReactNode
 }) {
+  const isAdmin = useIsAdmin()
+  const queryClient = useQueryClient()
+  const setConfig = useSystemConfigStore((state) => state.setConfig)
+  const themeDefaults = useSystemConfigStore(
+    (state) => state.config.themeDefaults
+  )
+  const defaults = useMemo<ThemeCustomization>(
+    () => ({
+      preset: themeDefaults.preset,
+      font: themeDefaults.font,
+      radius: themeDefaults.radius,
+      scale: themeDefaults.scale,
+      contentLayout: themeDefaults.contentLayout,
+    }),
+    [
+      themeDefaults.preset,
+      themeDefaults.font,
+      themeDefaults.radius,
+      themeDefaults.scale,
+      themeDefaults.contentLayout,
+    ]
+  )
+
   const [preset, _setPreset] = useState<ThemePreset>(() =>
     readCookie<ThemePreset>(
       THEME_COOKIE_KEYS.preset,
       THEME_PRESET_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.preset
+      defaults.preset
     )
   )
   const [font, _setFont] = useState<ThemeFont>(() =>
     readCookie<ThemeFont>(
       THEME_COOKIE_KEYS.font,
       THEME_FONT_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.font
+      defaults.font
     )
   )
   const [radius, _setRadius] = useState<ThemeRadius>(() =>
     readCookie<ThemeRadius>(
       THEME_COOKIE_KEYS.radius,
       THEME_RADIUS_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.radius
+      defaults.radius
     )
   )
   const [scale, _setScale] = useState<ThemeScale>(() =>
     readCookie<ThemeScale>(
       THEME_COOKIE_KEYS.scale,
       THEME_SCALE_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.scale
+      defaults.scale
     )
   )
   const [contentLayout, _setContentLayout] = useState<ContentLayout>(() =>
     readCookie<ContentLayout>(
       THEME_COOKIE_KEYS.contentLayout,
       CONTENT_LAYOUT_VALUES,
-      DEFAULT_THEME_CUSTOMIZATION.contentLayout
+      defaults.contentLayout
     )
   )
+
+  useEffect(() => {
+    if (!getCookie(THEME_COOKIE_KEYS.preset)) _setPreset(defaults.preset)
+  }, [defaults.preset])
+
+  useEffect(() => {
+    if (!getCookie(THEME_COOKIE_KEYS.font)) _setFont(defaults.font)
+  }, [defaults.font])
+
+  useEffect(() => {
+    if (!getCookie(THEME_COOKIE_KEYS.radius)) _setRadius(defaults.radius)
+  }, [defaults.radius])
+
+  useEffect(() => {
+    if (!getCookie(THEME_COOKIE_KEYS.scale)) _setScale(defaults.scale)
+  }, [defaults.scale])
+
+  useEffect(() => {
+    if (!getCookie(THEME_COOKIE_KEYS.contentLayout)) {
+      _setContentLayout(defaults.contentLayout)
+    }
+  }, [defaults.contentLayout])
 
   // Mirror state to the <body> via data-* attributes so theme-presets.css can
   // override CSS variables at the right cascade layer.
@@ -169,62 +220,142 @@ export function ThemeCustomizationProvider(props: {
     applyAttribute('data-theme-content-layout', contentLayout)
   }, [contentLayout])
 
-  const setPreset = useCallback((value: ThemePreset) => {
-    _setPreset(value)
-    if (value === DEFAULT_THEME_CUSTOMIZATION.preset) {
-      removeCookie(THEME_COOKIE_KEYS.preset)
-    } else {
-      setCookie(THEME_COOKIE_KEYS.preset, value, COOKIE_MAX_AGE)
-    }
-  }, [])
+  const saveAdminDefault = useCallback(
+    (
+      optionKey: string,
+      storeKey: keyof ThemeCustomization,
+      cookieKey: string,
+      value: string
+    ) => {
+      setCookie(cookieKey, value, COOKIE_MAX_AGE)
+      setConfig({
+        themeDefaults: {
+          ...useSystemConfigStore.getState().config.themeDefaults,
+          [storeKey]: value,
+        },
+      })
+      void updateSystemOption({ key: optionKey, value })
+        .then((res) => {
+          if (!res.success) {
+            toast.error(res.message || i18next.t('Failed to update setting'))
+          }
+          queryClient.invalidateQueries({ queryKey: ['status'] })
+          queryClient.invalidateQueries({ queryKey: ['system-options'] })
+          window.localStorage.removeItem('status')
+        })
+        .catch((error: Error) => {
+          toast.error(error.message || i18next.t('Failed to update setting'))
+        })
+    },
+    [queryClient, setConfig]
+  )
 
-  const setFont = useCallback((value: ThemeFont) => {
-    _setFont(value)
-    if (value === DEFAULT_THEME_CUSTOMIZATION.font) {
-      removeCookie(THEME_COOKIE_KEYS.font)
-    } else {
-      setCookie(THEME_COOKIE_KEYS.font, value, COOKIE_MAX_AGE)
-    }
-  }, [])
+  const writeLocalPreference = useCallback(
+    (cookieKey: string, value: string, defaultValue: string) => {
+      if (value === defaultValue) {
+        removeCookie(cookieKey)
+      } else {
+        setCookie(cookieKey, value, COOKIE_MAX_AGE)
+      }
+    },
+    []
+  )
 
-  const setRadius = useCallback((value: ThemeRadius) => {
-    _setRadius(value)
-    if (value === DEFAULT_THEME_CUSTOMIZATION.radius) {
-      removeCookie(THEME_COOKIE_KEYS.radius)
-    } else {
-      setCookie(THEME_COOKIE_KEYS.radius, value, COOKIE_MAX_AGE)
-    }
-  }, [])
+  const setPreset = useCallback(
+    (value: ThemePreset) => {
+      _setPreset(value)
+      if (isAdmin) {
+        saveAdminDefault(
+          'theme.preset',
+          'preset',
+          THEME_COOKIE_KEYS.preset,
+          value
+        )
+      } else {
+        writeLocalPreference(THEME_COOKIE_KEYS.preset, value, defaults.preset)
+      }
+    },
+    [defaults.preset, isAdmin, saveAdminDefault, writeLocalPreference]
+  )
 
-  const setScale = useCallback((value: ThemeScale) => {
-    _setScale(value)
-    if (value === DEFAULT_THEME_CUSTOMIZATION.scale) {
-      removeCookie(THEME_COOKIE_KEYS.scale)
-    } else {
-      setCookie(THEME_COOKIE_KEYS.scale, value, COOKIE_MAX_AGE)
-    }
-  }, [])
+  const setFont = useCallback(
+    (value: ThemeFont) => {
+      _setFont(value)
+      if (isAdmin) {
+        saveAdminDefault('theme.font', 'font', THEME_COOKIE_KEYS.font, value)
+      } else {
+        writeLocalPreference(THEME_COOKIE_KEYS.font, value, defaults.font)
+      }
+    },
+    [defaults.font, isAdmin, saveAdminDefault, writeLocalPreference]
+  )
 
-  const setContentLayout = useCallback((value: ContentLayout) => {
-    _setContentLayout(value)
-    if (value === DEFAULT_THEME_CUSTOMIZATION.contentLayout) {
-      removeCookie(THEME_COOKIE_KEYS.contentLayout)
-    } else {
-      setCookie(THEME_COOKIE_KEYS.contentLayout, value, COOKIE_MAX_AGE)
-    }
-  }, [])
+  const setRadius = useCallback(
+    (value: ThemeRadius) => {
+      _setRadius(value)
+      if (isAdmin) {
+        saveAdminDefault(
+          'theme.radius',
+          'radius',
+          THEME_COOKIE_KEYS.radius,
+          value
+        )
+      } else {
+        writeLocalPreference(THEME_COOKIE_KEYS.radius, value, defaults.radius)
+      }
+    },
+    [defaults.radius, isAdmin, saveAdminDefault, writeLocalPreference]
+  )
+
+  const setScale = useCallback(
+    (value: ThemeScale) => {
+      _setScale(value)
+      if (isAdmin) {
+        saveAdminDefault('theme.scale', 'scale', THEME_COOKIE_KEYS.scale, value)
+      } else {
+        writeLocalPreference(THEME_COOKIE_KEYS.scale, value, defaults.scale)
+      }
+    },
+    [defaults.scale, isAdmin, saveAdminDefault, writeLocalPreference]
+  )
+
+  const setContentLayout = useCallback(
+    (value: ContentLayout) => {
+      _setContentLayout(value)
+      if (isAdmin) {
+        saveAdminDefault(
+          'theme.content_layout',
+          'contentLayout',
+          THEME_COOKIE_KEYS.contentLayout,
+          value
+        )
+      } else {
+        writeLocalPreference(
+          THEME_COOKIE_KEYS.contentLayout,
+          value,
+          defaults.contentLayout
+        )
+      }
+    },
+    [
+      defaults.contentLayout,
+      isAdmin,
+      saveAdminDefault,
+      writeLocalPreference,
+    ]
+  )
 
   const resetCustomization = useCallback(() => {
-    setPreset(DEFAULT_THEME_CUSTOMIZATION.preset)
-    setFont(DEFAULT_THEME_CUSTOMIZATION.font)
-    setRadius(DEFAULT_THEME_CUSTOMIZATION.radius)
-    setScale(DEFAULT_THEME_CUSTOMIZATION.scale)
-    setContentLayout(DEFAULT_THEME_CUSTOMIZATION.contentLayout)
-  }, [setPreset, setFont, setRadius, setScale, setContentLayout])
+    setPreset(defaults.preset)
+    setFont(defaults.font)
+    setRadius(defaults.radius)
+    setScale(defaults.scale)
+    setContentLayout(defaults.contentLayout)
+  }, [defaults, setPreset, setFont, setRadius, setScale, setContentLayout])
 
   const value = useMemo<ThemeCustomizationContextType>(
     () => ({
-      defaults: DEFAULT_THEME_CUSTOMIZATION,
+      defaults,
       customization: { preset, font, radius, scale, contentLayout },
       setPreset,
       setFont,
@@ -234,6 +365,7 @@ export function ThemeCustomizationProvider(props: {
       resetCustomization,
     }),
     [
+      defaults,
       preset,
       font,
       radius,

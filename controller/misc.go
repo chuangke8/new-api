@@ -47,6 +47,7 @@ func GetStatus(c *gin.Context) {
 
 	passkeySetting := system_setting.GetPasskeySettings()
 	legalSetting := system_setting.GetLegalSettings()
+	themeSetting := system_setting.GetThemeSettings()
 
 	data := gin.H{
 		"version":                     common.Version,
@@ -63,17 +64,25 @@ func GetStatus(c *gin.Context) {
 		"linuxdo_minimum_trust_level": common.LinuxDOMinimumTrustLevel,
 		"telegram_oauth":              common.TelegramOAuthEnabled,
 		"telegram_bot_name":           common.TelegramBotName,
-		"theme":                       system_setting.GetThemeSettings().Frontend,
-		"system_name":                 common.SystemName,
-		"logo":                        common.Logo,
-		"footer_html":                 common.Footer,
-		"wechat_qrcode":               common.WeChatAccountQRCodeImageURL,
-		"wechat_login":                common.WeChatAuthEnabled,
-		"server_address":              system_setting.ServerAddress,
-		"turnstile_check":             common.TurnstileCheckEnabled,
-		"turnstile_site_key":          common.TurnstileSiteKey,
-		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
-		"quota_per_unit":              common.QuotaPerUnit,
+		"theme":                       themeSetting.Frontend,
+		"theme_defaults": gin.H{
+			"mode":           themeSetting.Mode,
+			"preset":         themeSetting.Preset,
+			"font":           themeSetting.Font,
+			"radius":         themeSetting.Radius,
+			"scale":          themeSetting.Scale,
+			"content_layout": themeSetting.ContentLayout,
+		},
+		"system_name":        common.SystemName,
+		"logo":               common.Logo,
+		"footer_html":        common.Footer,
+		"wechat_qrcode":      common.WeChatAccountQRCodeImageURL,
+		"wechat_login":       common.WeChatAuthEnabled,
+		"server_address":     system_setting.ServerAddress,
+		"turnstile_check":    common.TurnstileCheckEnabled,
+		"turnstile_site_key": common.TurnstileSiteKey,
+		"docs_link":          operation_setting.GetGeneralSetting().DocsLink,
+		"quota_per_unit":     common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
 		"display_in_currency":           operation_setting.IsCurrencyDisplay(),
 		"quota_display_type":            operation_setting.GetQuotaDisplayType(),

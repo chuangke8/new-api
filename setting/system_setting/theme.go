@@ -6,11 +6,23 @@ import (
 )
 
 type ThemeSettings struct {
-	Frontend string `json:"frontend"`
+	Frontend      string `json:"frontend"`
+	Mode          string `json:"mode"`
+	Preset        string `json:"preset"`
+	Font          string `json:"font"`
+	Radius        string `json:"radius"`
+	Scale         string `json:"scale"`
+	ContentLayout string `json:"content_layout"`
 }
 
 var themeSettings = ThemeSettings{
-	Frontend: "classic",
+	Frontend:      "classic",
+	Mode:          "system",
+	Preset:        "default",
+	Font:          "default",
+	Radius:        "default",
+	Scale:         "default",
+	ContentLayout: "full",
 }
 
 func init() {

@@ -50,6 +50,7 @@ type workspaceImageChannelRequest struct {
 	ModelAlias      string                              `json:"model_alias"`
 	CategoryId      int                                 `json:"category_id"`
 	FeatureControls model.WorkspaceImageFeatureControls `json:"feature_controls"`
+	MaxBatchSize    int                                 `json:"max_batch_size"`
 	SizePresets     []model.WorkspaceImagePreset        `json:"size_presets"`
 	RatioPresets    []model.WorkspaceImagePreset        `json:"ratio_presets"`
 	StylePresets    []model.WorkspaceImagePreset        `json:"style_presets"`
@@ -135,6 +136,7 @@ func workspaceImageRequestToChannel(req workspaceImageChannelRequest) model.Work
 		ModelAlias:      req.ModelAlias,
 		CategoryId:      req.CategoryId,
 		FeatureControls: workspaceImageFeatureControlsToString(req.FeatureControls),
+		MaxBatchSize:    req.MaxBatchSize,
 		SizePresets:     workspaceImagePresetsToString(req.SizePresets),
 		RatioPresets:    workspaceImagePresetsToString(req.RatioPresets),
 		StylePresets:    workspaceImagePresetsToString(req.StylePresets),
@@ -260,6 +262,28 @@ func readWorkspaceImageGenerationRequest(c *gin.Context) (dto.ImageRequest, stri
 	}
 	c.Request.Body = io.NopCloser(storage)
 	return imageRequest, string(requestBody), nil
+}
+
+func validateWorkspaceImageGenerationRequest(request dto.ImageRequest) error {
+	channel, err := model.GetWorkspaceImageModel(request.Model)
+	if err != nil {
+		return err
+	}
+	count := uint(1)
+	if request.N != nil {
+		count = *request.N
+	}
+	maxBatchSize := channel.MaxBatchSize
+	if maxBatchSize <= 0 {
+		maxBatchSize = 4
+	}
+	if !channel.FeatureControls.BatchControl && count > 1 {
+		return errors.New("selected image channel does not support generation count control")
+	}
+	if count > uint(maxBatchSize) {
+		return fmt.Errorf("generation count exceeds channel limit: max %d", maxBatchSize)
+	}
+	return nil
 }
 
 func newWorkspaceImageTaskID() string {
@@ -425,6 +449,10 @@ func GenerateWorkspaceImage(c *gin.Context) {
 
 	imageRequest, rawRequest, err := readWorkspaceImageGenerationRequest(c)
 	if err != nil {
+		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		return
+	}
+	if err := validateWorkspaceImageGenerationRequest(imageRequest); err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
 	}

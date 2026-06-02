@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -19,11 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TaskCenterDetailPayload } from './types'
 
 export const TASK_CENTER_TAG_TRANSLATION_KEYS: Record<string, string> = {
+  api: 'API',
   audio: 'Audio',
   cancelled: 'Cancelled',
   canceled: 'Cancelled',
   drawing: 'Drawing',
   failed: 'Failed',
+  generation: 'Generation',
   image: 'Image',
   imagine: 'Imagine',
   midjourney: 'Midjourney',
@@ -37,10 +39,13 @@ export const TASK_CENTER_TAG_TRANSLATION_KEYS: Record<string, string> = {
   upscale: 'Upscale',
   variation: 'Variation',
   video: 'Video',
+  workspace: 'Workspace',
 }
 
 export const TASK_CENTER_ZH_TAG_TO_RAW: Record<string, string> = {
+  API: 'api',
   任务: 'task',
+  工作台: 'workspace',
   绘图: 'drawing',
   图片: 'image',
   图像: 'image',
@@ -52,17 +57,17 @@ export const TASK_CENTER_ZH_TAG_TO_RAW: Record<string, string> = {
   处理中: 'running',
   已成功: 'succeeded',
   成功: 'succeeded',
-  失败: 'failed',
   已失败: 'failed',
+  失败: 'failed',
   已取消: 'cancelled',
   取消: 'cancelled',
   提交: 'submit',
-  生成: 'imagine',
+  生成: 'generation',
+  想象: 'imagine',
   放大: 'upscale',
   变体: 'variation',
   变化: 'variation',
 }
-
 export function getTaskCenterTagLabel(
   tag: string,
   t: (key: string) => string
@@ -126,3 +131,4 @@ export function taskStatusVariant(status?: string) {
       return 'warning'
   }
 }
+

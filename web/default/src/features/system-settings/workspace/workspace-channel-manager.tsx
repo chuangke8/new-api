@@ -81,15 +81,41 @@ import {
 import {
   createWorkspaceChatCategory,
   createWorkspaceChatChannel,
+  createWorkspaceImageCategory,
+  createWorkspaceImageChannel,
+  createWorkspaceVideoCategory,
+  createWorkspaceVideoChannel,
   deleteWorkspaceChatCategory,
   deleteWorkspaceChatChannel,
+  deleteWorkspaceImageCategory,
+  deleteWorkspaceImageChannel,
+  deleteWorkspaceVideoCategory,
+  deleteWorkspaceVideoChannel,
   getWorkspaceChatAvailableModels,
   getWorkspaceChatCategories,
   getWorkspaceChatChannels,
+  getWorkspaceImageAvailableModels,
+  getWorkspaceImageCategories,
+  getWorkspaceImageChannels,
+  getWorkspaceVideoAvailableModels,
+  getWorkspaceVideoCategories,
+  getWorkspaceVideoChannels,
   updateWorkspaceChatCategory,
   updateWorkspaceChatChannel,
+  updateWorkspaceImageCategory,
+  updateWorkspaceImageChannel,
+  updateWorkspaceVideoCategory,
+  updateWorkspaceVideoChannel,
   type WorkspaceChatCategoryDto,
   type WorkspaceChatChannelDto,
+  type WorkspaceImageCategoryDto,
+  type WorkspaceImageChannelDto,
+  type WorkspaceImageFeatureControlsDto,
+  type WorkspaceImagePresetDto,
+  type WorkspaceVideoCategoryDto,
+  type WorkspaceVideoChannelDto,
+  type WorkspaceVideoFeatureControlsDto,
+  type WorkspaceVideoPresetDto,
 } from './api'
 import type {
   WorkspaceCapabilityConfig,
@@ -160,6 +186,202 @@ function fromChatChannelDto(channel: WorkspaceChatChannelDto): WorkspaceChannel 
   }
 }
 
+function parseMaybeJson<T>(value: string | T, fallback: T): T {
+  if (typeof value !== 'string') return value
+  if (!value.trim()) return fallback
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return fallback
+  }
+}
+
+function fromImagePresetDto(preset: WorkspaceImagePresetDto): WorkspaceMappedPreset {
+  return {
+    value: preset.value,
+    zh: preset.label_zh || '',
+  }
+}
+
+function toImagePresetDto(preset: WorkspaceMappedPreset): WorkspaceImagePresetDto {
+  return {
+    value: preset.value,
+    label_zh: preset.zh || '',
+    label_en: preset.value,
+    disabled: false,
+  }
+}
+
+function stringPresetToDto(value: string): WorkspaceImagePresetDto {
+  return {
+    value,
+    label_zh: '',
+    label_en: value,
+    disabled: false,
+  }
+}
+
+function fromImageCategoryDto(
+  category: WorkspaceImageCategoryDto
+): WorkspaceChannelCategory {
+  return fromChatCategoryDto(category)
+}
+
+function fromImageChannelDto(channel: WorkspaceImageChannelDto): WorkspaceChannel {
+  const controls = parseMaybeJson<WorkspaceImageFeatureControlsDto>(
+    channel.feature_controls,
+    {
+      reference_image_upload: true,
+      size_control: true,
+      ratio_control: true,
+      style_control: true,
+      quality_control: true,
+    }
+  )
+  const sizePresets = parseMaybeJson<WorkspaceImagePresetDto[]>(
+    channel.size_presets,
+    []
+  )
+  const ratioPresets = parseMaybeJson<WorkspaceImagePresetDto[]>(
+    channel.ratio_presets,
+    []
+  )
+  const stylePresets = parseMaybeJson<WorkspaceImagePresetDto[]>(
+    channel.style_presets,
+    []
+  )
+  const qualityPresets = parseMaybeJson<WorkspaceImagePresetDto[]>(
+    channel.quality_presets,
+    []
+  )
+  return {
+    id: channel.id,
+    weight: channel.weight,
+    model: channel.model,
+    modelAlias: channel.model_alias,
+    category: channel.category_id,
+    sizePresets: sizePresets.map((item) => item.value).filter(Boolean),
+    ratioPresets: ratioPresets.map((item) => item.value).filter(Boolean),
+    stylePresets: stylePresets.map(fromImagePresetDto),
+    qualityPresets: qualityPresets.map(fromImagePresetDto),
+    capabilities: {
+      referenceImage: controls.reference_image_upload,
+      sizeControl: controls.size_control,
+      ratioControl: controls.ratio_control,
+      styleControl: controls.style_control,
+      qualityControl: controls.quality_control,
+    } as WorkspaceChannel['capabilities'],
+    disabled: channel.disabled,
+    remark: channel.remark,
+  }
+}
+
+function fromVideoPresetDto(preset: WorkspaceVideoPresetDto): WorkspaceMappedPreset {
+  return {
+    value: preset.value,
+    zh: preset.label_zh || '',
+  }
+}
+
+function toVideoPresetDto(preset: WorkspaceMappedPreset): WorkspaceVideoPresetDto {
+  return {
+    value: preset.value,
+    label_zh: preset.zh || '',
+    label_en: preset.value,
+    disabled: false,
+  }
+}
+
+function stringVideoPresetToDto(value: string): WorkspaceVideoPresetDto {
+  return {
+    value,
+    label_zh: '',
+    label_en: value,
+    disabled: false,
+  }
+}
+
+function fromVideoCategoryDto(
+  category: WorkspaceVideoCategoryDto
+): WorkspaceChannelCategory {
+  return fromChatCategoryDto(category)
+}
+
+function fromVideoChannelDto(channel: WorkspaceVideoChannelDto): WorkspaceChannel {
+  const controls = parseMaybeJson<WorkspaceVideoFeatureControlsDto>(
+    channel.feature_controls,
+    {
+      first_frame_image: true,
+      last_frame_image: true,
+      reference_image_upload: true,
+      duration_control: true,
+      ratio_control: true,
+      resolution_control: true,
+      frame_rate_control: true,
+      style_control: true,
+      quality_control: true,
+      negative_prompt: true,
+      audio_track: true,
+      camera_control: true,
+      seed_control: true,
+    }
+  )
+  const resolutionPresets = parseMaybeJson<WorkspaceVideoPresetDto[]>(
+    channel.resolution_presets,
+    []
+  )
+  const ratioPresets = parseMaybeJson<WorkspaceVideoPresetDto[]>(
+    channel.ratio_presets,
+    []
+  )
+  const durationPresets = parseMaybeJson<WorkspaceVideoPresetDto[]>(
+    channel.duration_presets,
+    []
+  )
+  const frameRatePresets = parseMaybeJson<WorkspaceVideoPresetDto[]>(
+    channel.frame_rate_presets,
+    []
+  )
+  const stylePresets = parseMaybeJson<WorkspaceVideoPresetDto[]>(
+    channel.style_presets,
+    []
+  )
+  const qualityPresets = parseMaybeJson<WorkspaceVideoPresetDto[]>(
+    channel.quality_presets,
+    []
+  )
+  return {
+    id: channel.id,
+    weight: channel.weight,
+    model: channel.model,
+    modelAlias: channel.model_alias,
+    category: channel.category_id,
+    sizePresets: resolutionPresets.map((item) => item.value).filter(Boolean),
+    ratioPresets: ratioPresets.map((item) => item.value).filter(Boolean),
+    durationPresets: durationPresets.map((item) => item.value).filter(Boolean),
+    frameRatePresets: frameRatePresets.map((item) => item.value).filter(Boolean),
+    stylePresets: stylePresets.map(fromVideoPresetDto),
+    qualityPresets: qualityPresets.map(fromVideoPresetDto),
+    capabilities: {
+      firstFrame: controls.first_frame_image,
+      lastFrame: controls.last_frame_image,
+      referenceImage: controls.reference_image_upload,
+      durationControl: controls.duration_control,
+      ratioControl: controls.ratio_control,
+      resolutionControl: controls.resolution_control,
+      frameRateControl: controls.frame_rate_control,
+      styleControl: controls.style_control,
+      qualityControl: controls.quality_control,
+      negativePrompt: controls.negative_prompt,
+      audioTrack: controls.audio_track,
+      cameraControl: controls.camera_control,
+      seedControl: controls.seed_control,
+    } as WorkspaceChannel['capabilities'],
+    disabled: channel.disabled,
+    remark: channel.remark,
+  }
+}
+
 function toChatCategoryDto(category: WorkspaceChannelCategory) {
   return {
     weight: category.weight,
@@ -168,6 +390,10 @@ function toChatCategoryDto(category: WorkspaceChannelCategory) {
     remark: category.remark,
     disabled: category.disabled,
   }
+}
+
+function toImageCategoryDto(category: WorkspaceChannelCategory) {
+  return toChatCategoryDto(category)
 }
 
 function toChatChannelDto(channel: WorkspaceChannel) {
@@ -184,6 +410,66 @@ function toChatChannelDto(channel: WorkspaceChannel) {
   }
 }
 
+function toImageChannelDto(channel: WorkspaceChannel) {
+  return {
+    weight: channel.weight,
+    model: channel.model,
+    model_alias: channel.modelAlias,
+    category_id: Number(channel.category),
+    feature_controls: {
+      reference_image_upload: Boolean(channel.capabilities.referenceImage),
+      size_control: Boolean(channel.capabilities.sizeControl),
+      ratio_control: Boolean(channel.capabilities.ratioControl),
+      style_control: Boolean(channel.capabilities.styleControl),
+      quality_control: Boolean(channel.capabilities.qualityControl),
+    },
+    size_presets: (channel.sizePresets || []).map(stringPresetToDto),
+    ratio_presets: (channel.ratioPresets || []).map(stringPresetToDto),
+    style_presets: (channel.stylePresets || []).map(toImagePresetDto),
+    quality_presets: (channel.qualityPresets || []).map(toImagePresetDto),
+    disabled: channel.disabled,
+    remark: channel.remark,
+  }
+}
+
+function toVideoCategoryDto(category: WorkspaceChannelCategory) {
+  return toChatCategoryDto(category)
+}
+
+function toVideoChannelDto(channel: WorkspaceChannel) {
+  return {
+    weight: channel.weight,
+    model: channel.model,
+    model_alias: channel.modelAlias,
+    category_id: Number(channel.category),
+    feature_controls: {
+      first_frame_image: Boolean(channel.capabilities.firstFrame),
+      last_frame_image: Boolean(channel.capabilities.lastFrame),
+      reference_image_upload: Boolean(channel.capabilities.referenceImage),
+      duration_control: Boolean(channel.capabilities.durationControl),
+      ratio_control: Boolean(channel.capabilities.ratioControl),
+      resolution_control: Boolean(channel.capabilities.resolutionControl),
+      frame_rate_control: Boolean(channel.capabilities.frameRateControl),
+      style_control: Boolean(channel.capabilities.styleControl),
+      quality_control: Boolean(channel.capabilities.qualityControl),
+      negative_prompt: Boolean(channel.capabilities.negativePrompt),
+      audio_track: Boolean(channel.capabilities.audioTrack),
+      camera_control: Boolean(channel.capabilities.cameraControl),
+      seed_control: Boolean(channel.capabilities.seedControl),
+    },
+    resolution_presets: (channel.sizePresets || []).map(stringVideoPresetToDto),
+    ratio_presets: (channel.ratioPresets || []).map(stringVideoPresetToDto),
+    duration_presets: (channel.durationPresets || []).map(stringVideoPresetToDto),
+    frame_rate_presets: (channel.frameRatePresets || []).map(
+      stringVideoPresetToDto
+    ),
+    style_presets: (channel.stylePresets || []).map(toVideoPresetDto),
+    quality_presets: (channel.qualityPresets || []).map(toVideoPresetDto),
+    disabled: channel.disabled,
+    remark: channel.remark,
+  }
+}
+
 export function WorkspaceChannelManager({
   kind,
 }: WorkspaceChannelManagerProps) {
@@ -191,6 +477,9 @@ export function WorkspaceChannelManager({
   const queryClient = useQueryClient()
   const config = WORKSPACE_MANAGER_CONFIGS[kind]
   const isChat = kind === 'chat'
+  const isImage = kind === 'image'
+  const isVideo = kind === 'video'
+  const isPersisted = isChat || isImage || isVideo
   const [activeTab, setActiveTab] = useState('channels')
   const [channels, setChannels] = useState<WorkspaceChannel[]>(() =>
     createDefaultChannels(kind)
@@ -207,8 +496,13 @@ export function WorkspaceChannelManager({
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null)
 
   const { data: modelsData } = useQuery({
-    queryKey: ['workspace-chat-available-models'],
-    queryFn: async () => (await getWorkspaceChatAvailableModels()).data || [],
+    queryKey: [`workspace-${kind}-available-models`],
+    queryFn: async () =>
+      isImage
+        ? (await getWorkspaceImageAvailableModels()).data || []
+        : isVideo
+          ? (await getWorkspaceVideoAvailableModels()).data || []
+          : (await getWorkspaceChatAvailableModels()).data || [],
     staleTime: 60_000,
   })
 
@@ -224,6 +518,34 @@ export function WorkspaceChannelManager({
     enabled: isChat,
   })
 
+  const { data: imageCategoriesData, isLoading: isLoadingImageCategories } =
+    useQuery({
+      queryKey: ['workspace-image-categories'],
+      queryFn: async () => (await getWorkspaceImageCategories()).data || [],
+      enabled: isImage,
+    })
+
+  const { data: imageChannelsData, isLoading: isLoadingImageChannels } =
+    useQuery({
+      queryKey: ['workspace-image-channels'],
+      queryFn: async () => (await getWorkspaceImageChannels()).data || [],
+      enabled: isImage,
+    })
+
+  const { data: videoCategoriesData, isLoading: isLoadingVideoCategories } =
+    useQuery({
+      queryKey: ['workspace-video-categories'],
+      queryFn: async () => (await getWorkspaceVideoCategories()).data || [],
+      enabled: isVideo,
+    })
+
+  const { data: videoChannelsData, isLoading: isLoadingVideoChannels } =
+    useQuery({
+      queryKey: ['workspace-video-channels'],
+      queryFn: async () => (await getWorkspaceVideoChannels()).data || [],
+      enabled: isVideo,
+    })
+
   const modelOptions = useMemo(
     () =>
       normalizeModelOptions(modelsData).length > 0
@@ -233,16 +555,36 @@ export function WorkspaceChannelManager({
   )
   const resolvedCategories = isChat
     ? (chatCategoriesData || []).map(fromChatCategoryDto)
-    : categories
+    : isImage
+      ? (imageCategoriesData || []).map(fromImageCategoryDto)
+      : isVideo
+        ? (videoCategoriesData || []).map(fromVideoCategoryDto)
+        : categories
   const resolvedChannels = isChat
     ? (chatChannelsData || []).map(fromChatChannelDto)
-    : channels
+    : isImage
+      ? (imageChannelsData || []).map(fromImageChannelDto)
+      : isVideo
+        ? (videoChannelsData || []).map(fromVideoChannelDto)
+        : channels
   const enabledCategories = resolvedCategories.filter((item) => !item.disabled)
 
   const invalidateChatQueries = () => {
     queryClient.invalidateQueries({ queryKey: ['workspace-chat-categories'] })
     queryClient.invalidateQueries({ queryKey: ['workspace-chat-channels'] })
     queryClient.invalidateQueries({ queryKey: ['workspace-chat-models'] })
+  }
+
+  const invalidateImageQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['workspace-image-categories'] })
+    queryClient.invalidateQueries({ queryKey: ['workspace-image-channels'] })
+    queryClient.invalidateQueries({ queryKey: ['workspace-image-models'] })
+  }
+
+  const invalidateVideoQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['workspace-video-categories'] })
+    queryClient.invalidateQueries({ queryKey: ['workspace-video-channels'] })
+    queryClient.invalidateQueries({ queryKey: ['workspace-video-models'] })
   }
 
   const saveChatCategoryMutation = useMutation({
@@ -291,6 +633,98 @@ export function WorkspaceChannelManager({
     },
   })
 
+  const saveImageCategoryMutation = useMutation({
+    mutationFn: async (category: WorkspaceChannelCategory) => {
+      const payload = toImageCategoryDto(category)
+      if (typeof category.id === 'number' && category.id > 0) {
+        return updateWorkspaceImageCategory(category.id, payload)
+      }
+      return createWorkspaceImageCategory(payload)
+    },
+    onSuccess: () => {
+      toast.success(t('Category configuration saved'))
+      setCategoryDialogOpen(false)
+      invalidateImageQueries()
+    },
+  })
+
+  const saveImageChannelMutation = useMutation({
+    mutationFn: async (channel: WorkspaceChannel) => {
+      const payload = toImageChannelDto(channel)
+      if (typeof channel.id === 'number' && channel.id > 0) {
+        return updateWorkspaceImageChannel(channel.id, payload)
+      }
+      return createWorkspaceImageChannel(payload)
+    },
+    onSuccess: () => {
+      toast.success(t('Channel configuration saved'))
+      setChannelDialogOpen(false)
+      invalidateImageQueries()
+    },
+  })
+
+  const deleteImageCategoryMutation = useMutation({
+    mutationFn: (id: number) => deleteWorkspaceImageCategory(id),
+    onSuccess: () => {
+      toast.success(t('Category deleted'))
+      invalidateImageQueries()
+    },
+  })
+
+  const deleteImageChannelMutation = useMutation({
+    mutationFn: (id: number) => deleteWorkspaceImageChannel(id),
+    onSuccess: () => {
+      toast.success(t('Channel deleted'))
+      invalidateImageQueries()
+    },
+  })
+
+  const saveVideoCategoryMutation = useMutation({
+    mutationFn: async (category: WorkspaceChannelCategory) => {
+      const payload = toVideoCategoryDto(category)
+      if (typeof category.id === 'number' && category.id > 0) {
+        return updateWorkspaceVideoCategory(category.id, payload)
+      }
+      return createWorkspaceVideoCategory(payload)
+    },
+    onSuccess: () => {
+      toast.success(t('Category configuration saved'))
+      setCategoryDialogOpen(false)
+      invalidateVideoQueries()
+    },
+  })
+
+  const saveVideoChannelMutation = useMutation({
+    mutationFn: async (channel: WorkspaceChannel) => {
+      const payload = toVideoChannelDto(channel)
+      if (typeof channel.id === 'number' && channel.id > 0) {
+        return updateWorkspaceVideoChannel(channel.id, payload)
+      }
+      return createWorkspaceVideoChannel(payload)
+    },
+    onSuccess: () => {
+      toast.success(t('Channel configuration saved'))
+      setChannelDialogOpen(false)
+      invalidateVideoQueries()
+    },
+  })
+
+  const deleteVideoCategoryMutation = useMutation({
+    mutationFn: (id: number) => deleteWorkspaceVideoCategory(id),
+    onSuccess: () => {
+      toast.success(t('Category deleted'))
+      invalidateVideoQueries()
+    },
+  })
+
+  const deleteVideoChannelMutation = useMutation({
+    mutationFn: (id: number) => deleteWorkspaceVideoChannel(id),
+    onSuccess: () => {
+      toast.success(t('Channel deleted'))
+      invalidateVideoQueries()
+    },
+  })
+
   const openNewChannelDialog = () => {
     setEditingChannel(
       createEmptyChannel(
@@ -319,6 +753,14 @@ export function WorkspaceChannelManager({
       saveChatChannelMutation.mutate(channel)
       return
     }
+    if (isImage) {
+      saveImageChannelMutation.mutate(channel)
+      return
+    }
+    if (isVideo) {
+      saveVideoChannelMutation.mutate(channel)
+      return
+    }
     setChannels((current) => {
       const exists = current.some((item) => item.id === channel.id)
       const next = exists
@@ -337,6 +779,14 @@ export function WorkspaceChannelManager({
     }
     if (isChat) {
       saveChatCategoryMutation.mutate(category)
+      return
+    }
+    if (isImage) {
+      saveImageCategoryMutation.mutate(category)
+      return
+    }
+    if (isVideo) {
+      saveVideoCategoryMutation.mutate(category)
       return
     }
     setCategories((current) => {
@@ -361,6 +811,20 @@ export function WorkspaceChannelManager({
       }
       return
     }
+    if (isImage) {
+      const target = resolvedChannels.find((item) => item.id === id)
+      if (target) {
+        saveImageChannelMutation.mutate({ ...target, ...patch })
+      }
+      return
+    }
+    if (isVideo) {
+      const target = resolvedChannels.find((item) => item.id === id)
+      if (target) {
+        saveVideoChannelMutation.mutate({ ...target, ...patch })
+      }
+      return
+    }
     setChannels((current) =>
       sortByWeight(
         current.map((item) => (item.id === id ? { ...item, ...patch } : item))
@@ -379,6 +843,20 @@ export function WorkspaceChannelManager({
       }
       return
     }
+    if (isImage) {
+      const target = resolvedCategories.find((item) => item.id === id)
+      if (target) {
+        saveImageCategoryMutation.mutate({ ...target, ...patch })
+      }
+      return
+    }
+    if (isVideo) {
+      const target = resolvedCategories.find((item) => item.id === id)
+      if (target) {
+        saveVideoCategoryMutation.mutate({ ...target, ...patch })
+      }
+      return
+    }
     setCategories((current) =>
       sortByWeight(
         current.map((item) => (item.id === id ? { ...item, ...patch } : item))
@@ -394,6 +872,16 @@ export function WorkspaceChannelManager({
         setDeleteTarget(null)
         return
       }
+      if (isImage && typeof deleteTarget.id === 'number') {
+        deleteImageChannelMutation.mutate(deleteTarget.id)
+        setDeleteTarget(null)
+        return
+      }
+      if (isVideo && typeof deleteTarget.id === 'number') {
+        deleteVideoChannelMutation.mutate(deleteTarget.id)
+        setDeleteTarget(null)
+        return
+      }
       setChannels((current) =>
         current.filter((item) => item.id !== deleteTarget.id)
       )
@@ -401,6 +889,16 @@ export function WorkspaceChannelManager({
     } else {
       if (isChat && typeof deleteTarget.id === 'number') {
         deleteChatCategoryMutation.mutate(deleteTarget.id)
+        setDeleteTarget(null)
+        return
+      }
+      if (isImage && typeof deleteTarget.id === 'number') {
+        deleteImageCategoryMutation.mutate(deleteTarget.id)
+        setDeleteTarget(null)
+        return
+      }
+      if (isVideo && typeof deleteTarget.id === 'number') {
+        deleteVideoCategoryMutation.mutate(deleteTarget.id)
         setDeleteTarget(null)
         return
       }
@@ -415,9 +913,11 @@ export function WorkspaceChannelManager({
   return (
     <div className='space-y-4'>
       <div className='text-muted-foreground text-sm'>
-        {t(
-          'Frontend-only workspace channel configuration preview. Backend persistence will be connected later.'
-        )}
+        {isPersisted
+          ? t('Workspace channel configuration is stored on the server.')
+          : t(
+              'Frontend-only workspace channel configuration preview. Backend persistence will be connected later.'
+            )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -448,7 +948,15 @@ export function WorkspaceChannelManager({
             kind={kind}
             channels={resolvedChannels}
             categories={resolvedCategories}
-            isLoading={isLoadingChannels}
+            isLoading={
+              isChat
+                ? isLoadingChannels
+                : isImage
+                  ? isLoadingImageChannels
+                  : isVideo
+                    ? isLoadingVideoChannels
+                    : false
+            }
             updateChannel={updateChannel}
             onEdit={(channel) => {
               setEditingChannel(channel)
@@ -468,7 +976,15 @@ export function WorkspaceChannelManager({
           <WorkspaceCategoriesTable
             config={config}
             categories={resolvedCategories}
-            isLoading={isLoadingCategories}
+            isLoading={
+              isChat
+                ? isLoadingCategories
+                : isImage
+                  ? isLoadingImageCategories
+                  : isVideo
+                    ? isLoadingVideoCategories
+                    : false
+            }
             updateCategory={updateCategory}
             onEdit={(category) => {
               setEditingCategory(category)

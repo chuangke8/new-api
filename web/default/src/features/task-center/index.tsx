@@ -19,12 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  Columns3,
   Eye,
   FileAudio,
   FileText,
   ImageIcon,
+  ExternalLink,
   Loader2,
   RefreshCw,
+  RotateCcw,
   Search,
   Video,
 } from 'lucide-react'
@@ -34,6 +37,7 @@ import { SectionPageLayout } from '@/components/layout'
 import { CopyButton } from '@/components/copy-button'
 import { StatusBadge } from '@/components/status-badge'
 import { useIsAdmin } from '@/hooks/use-admin'
+import { formatQuota } from '@/lib/format'
 import { cn, getPageNumbers } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,8 +55,14 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Sheet,
   SheetContent,
@@ -86,6 +96,7 @@ import {
 
 const PAGE_SIZE = 20
 const ALL_VALUE = 'all'
+const COLUMN_STORAGE_KEY = 'task-center-visible-columns'
 
 type Filters = {
   keyword: string
@@ -94,6 +105,9 @@ type Filters = {
   model: string
   user: string
   tag: string
+  submit_source: string
+  submitted_start: string
+  submitted_end: string
 }
 
 const defaultFilters: Filters = {
@@ -103,10 +117,56 @@ const defaultFilters: Filters = {
   model: '',
   user: '',
   tag: '',
+  submit_source: ALL_VALUE,
+  submitted_start: '',
+  submitted_end: '',
 }
 
 const statusOptions = ['pending', 'running', 'succeeded', 'failed', 'cancelled']
 const typeOptions = ['image', 'video', 'audio', 'other']
+const sourceOptions = ['workspace', 'api', 'system']
+
+type ColumnId =
+  | 'task_id'
+  | 'submitted_at'
+  | 'completed_at'
+  | 'user'
+  | 'model'
+  | 'source'
+  | 'status'
+  | 'cost'
+  | 'remark'
+  | 'actions'
+
+type ColumnOption = {
+  id: ColumnId
+  label: string
+  required?: boolean
+}
+
+const baseColumnOptions: ColumnOption[] = [
+  { id: 'task_id', label: 'Task ID', required: true },
+  { id: 'submitted_at', label: 'Submitted Time' },
+  { id: 'completed_at', label: 'Completed Time' },
+  { id: 'model', label: 'Model' },
+  { id: 'source', label: 'Source' },
+  { id: 'status', label: 'Status' },
+  { id: 'cost', label: 'Cost' },
+  { id: 'remark', label: 'Remark' },
+  { id: 'actions', label: 'View Details', required: true },
+]
+
+const adminColumnOption: ColumnOption = { id: 'user', label: 'User' }
+
+function loadVisibleColumns(): Partial<Record<ColumnId, boolean>> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(COLUMN_STORAGE_KEY) ?? '{}')
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
 
 function taskTypeIcon(taskType: string) {
   if (taskType === 'image') return ImageIcon
@@ -136,45 +196,117 @@ function translatedType(t: (key: string) => string, type: string) {
   return t(map[type] ?? type)
 }
 
+function translatedSource(t: (key: string) => string, source: string) {
+  const map: Record<string, string> = {
+    workspace: 'Workspace',
+    api: 'API',
+    system: 'System',
+  }
+  return t(map[source] ?? source)
+}
+
+function dateTimeLocalToUnix(value: string) {
+  if (!value) return undefined
+  const timestamp = new Date(value).getTime()
+  if (Number.isNaN(timestamp)) return undefined
+  return Math.floor(timestamp / 1000)
+}
+
+function selectedTypeLabel(t: (key: string) => string, value: string) {
+  return value === ALL_VALUE ? t('All Types') : translatedType(t, value)
+}
+
+function selectedStatusLabel(t: (key: string) => string, value: string) {
+  return value === ALL_VALUE ? t('All Statuses') : translatedStatus(t, value)
+}
+
+function selectedSourceLabel(t: (key: string) => string, value: string) {
+  return value === ALL_VALUE ? t('All Sources') : translatedSource(t, value)
+}
+
 function DetailBlock({
   title,
+  action,
   children,
 }: {
   title: string
+  action?: React.ReactNode
   children: React.ReactNode
 }) {
   if (!children) return null
   return (
     <section className='space-y-2'>
-      <h3 className='text-sm font-medium'>{title}</h3>
+      <div className='flex items-center justify-between gap-2'>
+        <h3 className='text-sm font-medium'>{title}</h3>
+        {action}
+      </div>
       {children}
     </section>
   )
 }
 
+function MediaPreview({ url, type }: { url: string; type: 'image' | 'video' | 'file' }) {
+  const { t } = useTranslation()
+  if (type === 'file') {
+    return (
+      <div className='border-border bg-muted/30 overflow-hidden rounded-lg border'>
+        <div className='text-muted-foreground flex min-h-24 items-center justify-center break-all p-3 text-sm'>
+          {url}
+        </div>
+        <div className='border-border bg-background/80 flex justify-end border-t px-3 py-2'>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+          >
+            <ExternalLink className='size-4' />
+            {t('Fullscreen Preview')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className='border-border bg-muted/30 overflow-hidden rounded-lg border'>
+      {type === 'image' ? (
+        <img src={url} alt='' className='aspect-video w-full object-cover' />
+      ) : (
+        <video src={url} controls className='aspect-video w-full' />
+      )}
+      <div className='border-border bg-background/80 flex justify-end border-t px-3 py-2'>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+        >
+          <ExternalLink className='size-4' />
+          {t('Fullscreen Preview')}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function isImageUrl(url: string) {
+  const cleanUrl = url.split('?')[0]?.toLowerCase() ?? ''
+  return (
+    cleanUrl.startsWith('data:image/') ||
+    /\.(png|jpe?g|webp|gif|bmp|avif)$/.test(cleanUrl)
+  )
+}
+
 function UrlGrid({ urls, type }: { urls?: string[]; type: 'image' | 'video' | 'file' }) {
-  const cleanUrls = (urls ?? []).filter(Boolean)
+  const cleanUrls = Array.from(new Set((urls ?? []).filter(Boolean))).filter(
+    (url) => type !== 'video' || !isImageUrl(url)
+  )
   if (cleanUrls.length === 0) return null
   return (
     <div className='grid gap-3 sm:grid-cols-2'>
       {cleanUrls.map((url) => (
-        <a
-          key={url}
-          href={url}
-          target='_blank'
-          rel='noreferrer'
-          className='border-border bg-muted/30 block overflow-hidden rounded-lg border'
-        >
-          {type === 'image' ? (
-            <img src={url} alt='' className='aspect-video w-full object-cover' />
-          ) : type === 'video' ? (
-            <video src={url} controls className='aspect-video w-full' />
-          ) : (
-            <div className='text-muted-foreground flex min-h-24 items-center justify-center break-all p-3 text-sm'>
-              {url}
-            </div>
-          )}
-        </a>
+        <MediaPreview key={url} url={url} type={type} />
       ))}
     </div>
   )
@@ -233,6 +365,7 @@ function TaskDetailSheet({
 
   const detailRecord = detailQuery.data ?? record
   const detail = parseDetail(detailRecord?.detail)
+  const promptText = detail.prompt || detail.input_text || ''
   const metadata = detail.metadata
     ? JSON.stringify(detail.metadata, null, 2)
     : ''
@@ -265,13 +398,33 @@ function TaskDetailSheet({
                   label={t('Completed Time')}
                   value={formatUnixTime(detailRecord?.completed_at)}
                 />
-                <InfoItem label={t('Cost')} value={String(detailRecord?.cost ?? 0)} />
+                <InfoItem
+                  label={t('Source')}
+                  value={translatedSource(t, detailRecord?.submit_source ?? '')}
+                />
+                <InfoItem
+                  label={t('Cost')}
+                  value={formatQuota(detailRecord?.cost ?? 0)}
+                />
                 <InfoItem label={t('Remark')} value={detailRecord?.remark || '-'} />
               </div>
 
-              <DetailBlock title={t('Prompt')}>
+              <DetailBlock
+                title={t('Prompt')}
+                action={
+                  promptText ? (
+                    <CopyButton
+                      value={promptText}
+                      size='icon'
+                      className='size-7'
+                      tooltip={t('Copy prompt')}
+                      successTooltip={t('Prompt copied')}
+                    />
+                  ) : null
+                }
+              >
                 <pre className='bg-muted/50 whitespace-pre-wrap rounded-lg p-3 text-sm'>
-                  {detail.prompt || detail.input_text || '-'}
+                  {promptText || '-'}
                 </pre>
               </DetailBlock>
               {detail.negative_prompt && (
@@ -298,7 +451,7 @@ function TaskDetailSheet({
                   </pre>
                 </DetailBlock>
               )}
-              {metadata && (
+              {isAdmin && metadata && (
                 <DetailBlock title={t('Metadata')}>
                   <pre className='bg-muted/50 max-h-72 overflow-auto rounded-lg p-3 text-xs'>
                     {metadata}
@@ -349,6 +502,32 @@ export function TaskCenter() {
   const [filters, setFilters] = useState<Filters>(defaultFilters)
   const [draftFilters, setDraftFilters] = useState<Filters>(defaultFilters)
   const [detailRecord, setDetailRecord] = useState<TaskCenterRecord | null>(null)
+  const [visibleColumns, setVisibleColumns] = useState<
+    Partial<Record<ColumnId, boolean>>
+  >(() => loadVisibleColumns())
+
+  const columnOptions = useMemo(
+    () =>
+      isAdmin
+        ? [
+            ...baseColumnOptions.slice(0, 3),
+            adminColumnOption,
+            ...baseColumnOptions.slice(3),
+          ]
+        : baseColumnOptions,
+    [isAdmin]
+  )
+  const isColumnVisible = (column: ColumnId) => visibleColumns[column] !== false
+  const setColumnVisible = (column: ColumnId, visible: boolean) => {
+    setVisibleColumns((prev) => {
+      const next = { ...prev, [column]: visible }
+      window.localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+  const visibleColumnCount = columnOptions.filter((column) =>
+    isColumnVisible(column.id)
+  ).length
 
   const queryParams = useMemo(
     () => ({
@@ -361,6 +540,10 @@ export function TaskCenter() {
       model: filters.model || undefined,
       user: isAdmin && filters.user ? filters.user : undefined,
       tag: normalizeTaskCenterTagFilter(filters.tag) || undefined,
+      submit_source:
+        filters.submit_source === ALL_VALUE ? undefined : filters.submit_source,
+      submitted_start: dateTimeLocalToUnix(filters.submitted_start),
+      submitted_end: dateTimeLocalToUnix(filters.submitted_end),
     }),
     [filters, isAdmin, page]
   )
@@ -470,7 +653,7 @@ export function TaskCenter() {
               }
             >
               <SelectTrigger className='w-full'>
-                <SelectValue placeholder={t('All Types')} />
+                {selectedTypeLabel(t, draftFilters.task_type)}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_VALUE}>{t('All Types')}</SelectItem>
@@ -491,7 +674,7 @@ export function TaskCenter() {
               }
             >
               <SelectTrigger className='w-full'>
-                <SelectValue placeholder={t('All Statuses')} />
+                {selectedStatusLabel(t, draftFilters.status)}
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_VALUE}>{t('All Statuses')}</SelectItem>
@@ -502,13 +685,85 @@ export function TaskCenter() {
                 ))}
               </SelectContent>
             </Select>
-            <div className='flex gap-2 md:col-span-3 xl:col-span-2'>
-              <Button onClick={submitFilters} className='flex-1'>
-                {t('Filter')}
+            <Select
+              value={draftFilters.submit_source}
+              onValueChange={(value) =>
+                setDraftFilters((prev) => ({
+                  ...prev,
+                  submit_source: value ?? ALL_VALUE,
+                }))
+              }
+            >
+              <SelectTrigger className='w-full'>
+                {selectedSourceLabel(t, draftFilters.submit_source)}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_VALUE}>{t('All Sources')}</SelectItem>
+                {sourceOptions.map((source) => (
+                  <SelectItem key={source} value={source}>
+                    {translatedSource(t, source)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type='datetime-local'
+              value={draftFilters.submitted_start}
+              onChange={(event) =>
+                setDraftFilters((prev) => ({
+                  ...prev,
+                  submitted_start: event.target.value,
+                }))
+              }
+              aria-label={t('Submitted Start')}
+              title={t('Submitted Start')}
+            />
+            <Input
+              type='datetime-local'
+              value={draftFilters.submitted_end}
+              onChange={(event) =>
+                setDraftFilters((prev) => ({
+                  ...prev,
+                  submitted_end: event.target.value,
+                }))
+              }
+              aria-label={t('Submitted End')}
+              title={t('Submitted End')}
+            />
+            <div className='flex justify-end gap-2 md:col-span-3 xl:col-span-6'>
+              <Button size='sm' onClick={submitFilters}>
+                <Search className='size-4' />
+                {t('Search')}
               </Button>
-              <Button variant='outline' onClick={resetFilters}>
+              <Button size='sm' variant='outline' onClick={resetFilters}>
+                <RotateCcw className='size-4' />
                 {t('Reset')}
               </Button>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger
+                  className={cn(
+                    'border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-8 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium whitespace-nowrap shadow-xs transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'
+                  )}
+                >
+                  <Columns3 className='size-4' />
+                  {t('View')}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end' className='w-44'>
+                  <DropdownMenuLabel>{t('Toggle columns')}</DropdownMenuLabel>
+                  {columnOptions.map((column) => (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      checked={isColumnVisible(column.id)}
+                      disabled={column.required}
+                      onCheckedChange={(checked) =>
+                        setColumnVisible(column.id, Boolean(checked))
+                      }
+                    >
+                      {t(column.label)}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -516,21 +771,24 @@ export function TaskCenter() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('Task ID')}</TableHead>
-                  <TableHead>{t('Submitted Time')}</TableHead>
-                  <TableHead>{t('Completed Time')}</TableHead>
-                  {isAdmin && <TableHead>{t('User')}</TableHead>}
-                  <TableHead>{t('Model')}</TableHead>
-                  <TableHead>{t('Status')}</TableHead>
-                  <TableHead>{t('Cost')}</TableHead>
-                  <TableHead>{t('Remark')}</TableHead>
-                  <TableHead className='text-right'>{t('View Details')}</TableHead>
+                  {isColumnVisible('task_id') && <TableHead>{t('Task ID')}</TableHead>}
+                  {isColumnVisible('submitted_at') && <TableHead>{t('Submitted Time')}</TableHead>}
+                  {isColumnVisible('completed_at') && <TableHead>{t('Completed Time')}</TableHead>}
+                  {isAdmin && isColumnVisible('user') && <TableHead>{t('User')}</TableHead>}
+                  {isColumnVisible('model') && <TableHead>{t('Model')}</TableHead>}
+                  {isColumnVisible('source') && <TableHead>{t('Source')}</TableHead>}
+                  {isColumnVisible('status') && <TableHead>{t('Status')}</TableHead>}
+                  {isColumnVisible('cost') && <TableHead>{t('Cost')}</TableHead>}
+                  {isColumnVisible('remark') && <TableHead>{t('Remark')}</TableHead>}
+                  {isColumnVisible('actions') && (
+                    <TableHead className='text-right'>{t('View Details')}</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {listQuery.isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={isAdmin ? 9 : 8} className='h-40 text-center'>
+                    <TableCell colSpan={visibleColumnCount} className='h-40 text-center'>
                       <div className='text-muted-foreground inline-flex items-center gap-2'>
                         <Loader2 className='size-4 animate-spin' />
                         {t('Loading...')}
@@ -539,7 +797,7 @@ export function TaskCenter() {
                   </TableRow>
                 ) : records.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isAdmin ? 9 : 8} className='text-muted-foreground h-40 text-center'>
+                    <TableCell colSpan={visibleColumnCount} className='text-muted-foreground h-40 text-center'>
                       {t('No tasks found')}
                     </TableCell>
                   </TableRow>
@@ -549,68 +807,91 @@ export function TaskCenter() {
                     const tags = parseTags(record.tags)
                     return (
                       <TableRow key={record.id}>
-                        <TableCell>
-                          <div className='flex max-w-72 items-center gap-2'>
-                            <Icon className='text-muted-foreground size-4 shrink-0' />
-                            <span className='truncate font-mono text-xs'>
-                              {record.task_id}
-                            </span>
-                            <CopyButton
-                              value={record.task_id}
-                              size='icon'
-                              className='size-7'
-                              tooltip={t('Copy task ID')}
-                              successTooltip={t('Task ID copied')}
-                            />
-                          </div>
-                          <div className='mt-1 flex flex-wrap gap-1'>
-                            {tags.slice(0, 3).map((tag) => (
-                              <StatusBadge
-                                key={tag}
-                                label={getTaskCenterTagLabel(tag, t)}
-                                autoColor={tag}
-                                copyable={false}
+                        {isColumnVisible('task_id') && (
+                          <TableCell>
+                            <div className='flex max-w-72 items-center gap-2'>
+                              <Icon className='text-muted-foreground size-4 shrink-0' />
+                              <span className='truncate font-mono text-xs'>
+                                {record.task_id}
+                              </span>
+                              <CopyButton
+                                value={record.task_id}
+                                size='icon'
+                                className='size-7'
+                                tooltip={t('Copy task ID')}
+                                successTooltip={t('Task ID copied')}
                               />
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>{formatUnixTime(record.submitted_at)}</TableCell>
-                        <TableCell>{formatUnixTime(record.completed_at)}</TableCell>
-                        {isAdmin && (
+                            </div>
+                            <div className='mt-1 flex flex-wrap gap-1'>
+                              {tags.slice(0, 3).map((tag) => (
+                                <StatusBadge
+                                  key={tag}
+                                  label={getTaskCenterTagLabel(tag, t)}
+                                  autoColor={tag}
+                                  copyable={false}
+                                />
+                              ))}
+                            </div>
+                          </TableCell>
+                        )}
+                        {isColumnVisible('submitted_at') && (
+                          <TableCell>{formatUnixTime(record.submitted_at)}</TableCell>
+                        )}
+                        {isColumnVisible('completed_at') && (
+                          <TableCell>{formatUnixTime(record.completed_at)}</TableCell>
+                        )}
+                        {isAdmin && isColumnVisible('user') && (
                           <TableCell>
                             {record.username_snapshot || record.user_id || '-'}
                           </TableCell>
                         )}
-                        <TableCell className='max-w-48 truncate'>
-                          {record.model || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge
-                            label={translatedStatus(t, record.status)}
-                            variant={taskStatusVariant(record.status)}
-                            copyable={false}
-                          />
-                        </TableCell>
-                        <TableCell>{record.cost}</TableCell>
-                        <TableCell>
-                          <RemarkEditor
-                            record={record}
-                            saving={remarkMutation.isPending}
-                            onSave={(item, remark) =>
-                              remarkMutation.mutate({ id: item.id, remark })
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className='text-right'>
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={() => setDetailRecord(record)}
-                          >
-                            <Eye className='size-4' />
-                            {t('View Details')}
-                          </Button>
-                        </TableCell>
+                        {isColumnVisible('model') && (
+                          <TableCell className='max-w-48 truncate'>
+                            {record.model || '-'}
+                          </TableCell>
+                        )}
+                        {isColumnVisible('source') && (
+                          <TableCell>
+                            <StatusBadge
+                              label={translatedSource(t, record.submit_source)}
+                              autoColor={record.submit_source}
+                              copyable={false}
+                            />
+                          </TableCell>
+                        )}
+                        {isColumnVisible('status') && (
+                          <TableCell>
+                            <StatusBadge
+                              label={translatedStatus(t, record.status)}
+                              variant={taskStatusVariant(record.status)}
+                              copyable={false}
+                            />
+                          </TableCell>
+                        )}
+                        {isColumnVisible('cost') && <TableCell>{formatQuota(record.cost)}</TableCell>}
+                        {isColumnVisible('remark') && (
+                          <TableCell>
+                            <RemarkEditor
+                              record={record}
+                              saving={remarkMutation.isPending}
+                              onSave={(item, remark) =>
+                                remarkMutation.mutate({ id: item.id, remark })
+                              }
+                            />
+                          </TableCell>
+                        )}
+                        {isColumnVisible('actions') && (
+                          <TableCell className='text-right'>
+                            <Button
+                              variant='outline'
+                              size='sm'
+                              onClick={() => setDetailRecord(record)}
+                            >
+                              <Eye className='size-4' />
+                              {t('View')}
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     )
                   })

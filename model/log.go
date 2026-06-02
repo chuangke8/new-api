@@ -272,6 +272,21 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 }
 
+func UpdateTaskConsumeLogUseTime(taskID string, userID int, useTimeSeconds int) error {
+	if taskID == "" || userID <= 0 || useTimeSeconds <= 0 {
+		return nil
+	}
+	taskIDPattern := "%task_id%"
+	valuePattern := "%" + taskID + "%"
+	err := LOG_DB.Model(&Log{}).
+		Where("type = ? AND user_id = ? AND other LIKE ? AND other LIKE ?", LogTypeConsume, userID, taskIDPattern, valuePattern).
+		Update("use_time", useTimeSeconds).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 type RecordTaskBillingLogParams struct {
 	UserId    int
 	LogType   int

@@ -46,6 +46,7 @@ export type TaskCenterDetailPayload = {
 export type TaskCenterRecord = {
   id: number
   source: string
+  submit_source: string
   source_id: string
   task_id: string
   user_id: number
@@ -76,6 +77,7 @@ export type TaskCenterListParams = {
   model?: string
   user?: string
   tag?: string
+  submit_source?: string
   submitted_start?: number
   submitted_end?: number
 }

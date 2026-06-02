@@ -175,6 +175,24 @@ export const WORKSPACE_MANAGER_CONFIGS: Record<
         icon: Film,
       },
       {
+        key: 'styleControl',
+        labelKey: 'Style control',
+        descriptionKey: 'Allow users to choose style presets.',
+        icon: Palette,
+      },
+      {
+        key: 'qualityControl',
+        labelKey: 'Quality control',
+        descriptionKey: 'Allow users to choose quality presets.',
+        icon: Sparkles,
+      },
+      {
+        key: 'negativePrompt',
+        labelKey: 'Negative prompt',
+        descriptionKey: 'Allow users to define elements to avoid.',
+        icon: FileText,
+      },
+      {
         key: 'audioTrack',
         labelKey: 'Audio track',
         descriptionKey: 'Allow users to attach or generate audio tracks.',

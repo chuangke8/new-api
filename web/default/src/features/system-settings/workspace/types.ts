@@ -34,6 +34,7 @@ export type WorkspaceCapabilityKey =
   | 'durationControl'
   | 'resolutionControl'
   | 'frameRateControl'
+  | 'negativePrompt'
   | 'audioTrack'
   | 'cameraControl'
   | 'seedControl'

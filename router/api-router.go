@@ -324,6 +324,7 @@ func SetApiRouter(router *gin.Engine) {
 			taskCenterRoute.GET("/:id", controller.GetTaskCenterDetail)
 			taskCenterRoute.PATCH("/:id/remark", controller.UpdateTaskCenterRemark)
 		}
+		apiRouter.GET("/task-center-assets/*path", controller.GetTaskCenterAsset)
 
 		logRoute.Use(middleware.CORS(), middleware.CriticalRateLimit())
 		{
@@ -372,12 +373,56 @@ func SetApiRouter(router *gin.Engine) {
 			workspaceChatAdminRoute.DELETE("/channels/:id", controller.AdminDeleteWorkspaceChatChannel)
 		}
 
+		workspaceImageRoute := apiRouter.Group("/workspace/image")
+		workspaceImageRoute.Use(middleware.UserAuth())
+		{
+			workspaceImageRoute.GET("/models", controller.GetWorkspaceImageModels)
+			workspaceImageRoute.POST("/generations", controller.GenerateWorkspaceImage)
+		}
+
+		workspaceImageAdminRoute := apiRouter.Group("/workspace/image/admin")
+		workspaceImageAdminRoute.Use(middleware.AdminAuth())
+		{
+			workspaceImageAdminRoute.GET("/available-models", controller.AdminWorkspaceImageAvailableModels)
+			workspaceImageAdminRoute.GET("/categories", controller.AdminListWorkspaceImageCategories)
+			workspaceImageAdminRoute.POST("/categories", controller.AdminCreateWorkspaceImageCategory)
+			workspaceImageAdminRoute.PUT("/categories/:id", controller.AdminUpdateWorkspaceImageCategory)
+			workspaceImageAdminRoute.DELETE("/categories/:id", controller.AdminDeleteWorkspaceImageCategory)
+			workspaceImageAdminRoute.GET("/channels", controller.AdminListWorkspaceImageChannels)
+			workspaceImageAdminRoute.POST("/channels", controller.AdminCreateWorkspaceImageChannel)
+			workspaceImageAdminRoute.PUT("/channels/:id", controller.AdminUpdateWorkspaceImageChannel)
+			workspaceImageAdminRoute.DELETE("/channels/:id", controller.AdminDeleteWorkspaceImageChannel)
+		}
+
+		workspaceVideoRoute := apiRouter.Group("/workspace/video")
+		workspaceVideoRoute.Use(middleware.UserAuth())
+		{
+			workspaceVideoRoute.GET("/models", controller.GetWorkspaceVideoModels)
+			workspaceVideoRoute.POST("/generations", controller.GenerateWorkspaceVideo)
+			workspaceVideoRoute.GET("/generations/:task_id", controller.GetWorkspaceVideoTask)
+		}
+
+		workspaceVideoAdminRoute := apiRouter.Group("/workspace/video/admin")
+		workspaceVideoAdminRoute.Use(middleware.AdminAuth())
+		{
+			workspaceVideoAdminRoute.GET("/available-models", controller.AdminWorkspaceVideoAvailableModels)
+			workspaceVideoAdminRoute.GET("/categories", controller.AdminListWorkspaceVideoCategories)
+			workspaceVideoAdminRoute.POST("/categories", controller.AdminCreateWorkspaceVideoCategory)
+			workspaceVideoAdminRoute.PUT("/categories/:id", controller.AdminUpdateWorkspaceVideoCategory)
+			workspaceVideoAdminRoute.DELETE("/categories/:id", controller.AdminDeleteWorkspaceVideoCategory)
+			workspaceVideoAdminRoute.GET("/channels", controller.AdminListWorkspaceVideoChannels)
+			workspaceVideoAdminRoute.POST("/channels", controller.AdminCreateWorkspaceVideoChannel)
+			workspaceVideoAdminRoute.PUT("/channels/:id", controller.AdminUpdateWorkspaceVideoChannel)
+			workspaceVideoAdminRoute.DELETE("/channels/:id", controller.AdminDeleteWorkspaceVideoChannel)
+		}
+
 		mjRoute := apiRouter.Group("/mj")
 		mjRoute.GET("/self", middleware.UserAuth(), controller.GetUserMidjourney)
 		mjRoute.GET("/", middleware.AdminAuth(), controller.GetAllMidjourney)
 
 		taskRoute := apiRouter.Group("/task")
 		{
+			taskRoute.GET("", middleware.AdminAuth(), controller.GetAllTask)
 			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
 		}

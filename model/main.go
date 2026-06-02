@@ -284,6 +284,10 @@ func migrateDB() error {
 		&PerfMetric{},
 		&WorkspaceChatCategory{},
 		&WorkspaceChatChannel{},
+		&WorkspaceImageCategory{},
+		&WorkspaceImageChannel{},
+		&WorkspaceVideoCategory{},
+		&WorkspaceVideoChannel{},
 		&WorkspaceChatSession{},
 		&WorkspaceChatMessage{},
 	)
@@ -339,6 +343,10 @@ func migrateDBFast() error {
 		{&PerfMetric{}, "PerfMetric"},
 		{&WorkspaceChatCategory{}, "WorkspaceChatCategory"},
 		{&WorkspaceChatChannel{}, "WorkspaceChatChannel"},
+		{&WorkspaceImageCategory{}, "WorkspaceImageCategory"},
+		{&WorkspaceImageChannel{}, "WorkspaceImageChannel"},
+		{&WorkspaceVideoCategory{}, "WorkspaceVideoCategory"},
+		{&WorkspaceVideoChannel{}, "WorkspaceVideoChannel"},
 		{&WorkspaceChatSession{}, "WorkspaceChatSession"},
 		{&WorkspaceChatMessage{}, "WorkspaceChatMessage"},
 	}

@@ -77,6 +77,7 @@ func sweepTimedOutTasks(ctx context.Context) {
 			continue
 		}
 		timedOutCount++
+		updateTaskUseTimeOnFinish(ctx, task)
 		if !isLegacy && task.Quota != 0 {
 			RefundTaskQuota(ctx, task, reason)
 		}
@@ -148,6 +149,15 @@ func DispatchPlatformUpdate(platform constant.TaskPlatform, taskChannelM map[int
 		if err := UpdateVideoTasks(context.Background(), platform, taskChannelM, taskM); err != nil {
 			common.SysLog(fmt.Sprintf("UpdateVideoTasks fail: %s", err))
 		}
+	}
+}
+
+func updateTaskUseTimeOnFinish(ctx context.Context, task *model.Task) {
+	if task == nil || task.TaskID == "" || task.UserId <= 0 || task.SubmitTime <= 0 || task.FinishTime <= task.SubmitTime {
+		return
+	}
+	if err := model.UpdateTaskConsumeLogUseTime(task.TaskID, task.UserId, int(task.FinishTime-task.SubmitTime)); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("failed to update task use_time for %s: %s", task.TaskID, err.Error()))
 	}
 }
 
@@ -481,10 +491,14 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			logger.LogWarn(ctx, fmt.Sprintf("Task %s already transitioned by another process, skip billing", task.TaskID))
 			shouldRefund = false
 			shouldSettle = false
+		} else {
+			updateTaskUseTimeOnFinish(ctx, task)
 		}
 	} else if !snap.Equal(task.Snapshot()) {
 		if _, err := task.UpdateWithStatus(snap.Status); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("Failed to update task %s: %s", task.TaskID, err.Error()))
+		} else if isDone {
+			updateTaskUseTimeOnFinish(ctx, task)
 		}
 	} else {
 		// No changes, skip update

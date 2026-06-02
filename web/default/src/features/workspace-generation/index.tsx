@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Copy,
@@ -52,7 +52,16 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { getWorkspaceChatAvailableModels } from '@/features/system-settings/workspace/api'
+import {
+  generateWorkspaceImage,
+  generateWorkspaceVideo,
+  getWorkspaceImageModels,
+  getWorkspaceVideoTask,
+  getWorkspaceVideoModels,
+  type WorkspaceImageFeatureControlsDto,
+  type WorkspaceImagePresetDto,
+  type WorkspaceVideoFeatureControlsDto,
+} from '@/features/system-settings/workspace/api'
 import {
   IMAGE_QUALITY_PRESETS,
   IMAGE_RATIO_PRESETS,
@@ -72,13 +81,22 @@ type GeneratedItem = {
   id: string
   kind: GenerationKind
   prompt: string
+  revisedPrompt?: string
   model: string
-  status: 'ready' | 'generating'
+  status: 'ready' | 'generating' | 'queued' | 'processing' | 'failed'
+  taskId?: string
+  imageUrl?: string
+  videoUrl?: string
+  b64Json?: string
   size?: string
   ratio?: string
   quality?: string
   duration?: string
   frameRate?: string
+}
+
+type GenerationMappedPreset = WorkspaceMappedPreset & {
+  en?: string
 }
 
 const localizedPresetLabels: Record<string, string> = {
@@ -101,21 +119,115 @@ function isZhLanguage(language?: string) {
 }
 
 function presetLabel(
-  preset: string | WorkspaceMappedPreset,
+  preset: string | GenerationMappedPreset,
   zhLanguage: boolean,
   t: (key: string) => string
 ) {
   if (typeof preset === 'string') return preset
   if (zhLanguage && preset.zh) return preset.zh
+  if (preset.en) return preset.en
   return t(localizedPresetLabels[preset.value] || preset.value)
 }
 
-function useAvailableModels() {
-  return useQuery({
-    queryKey: ['workspace-generation-models'],
-    queryFn: async () => (await getWorkspaceChatAvailableModels()).data || [],
-    staleTime: 60_000,
-  })
+function imagePresetToMappedPreset(
+  preset: WorkspaceImagePresetDto
+): GenerationMappedPreset {
+  return {
+    value: preset.value,
+    zh: preset.label_zh || '',
+    en: preset.label_en || preset.value,
+  }
+}
+
+function enabledImagePresets(presets: WorkspaceImagePresetDto[]) {
+  return presets.filter((item) => item.value && !item.disabled)
+}
+
+function firstOrCurrent<T extends string | GenerationMappedPreset>(
+  values: T[],
+  current: string,
+  fallback: string
+) {
+  const nextValues = values.map((item) =>
+    typeof item === 'string' ? item : item.value
+  )
+  if (current && nextValues.includes(current)) return current
+  return nextValues[0] || fallback
+}
+
+function normalizeImageSource(item: GeneratedItem) {
+  if (item.imageUrl) return item.imageUrl
+  if (item.b64Json) return `data:image/png;base64,${item.b64Json}`
+  return ''
+}
+
+function videoPresetToMappedPreset(
+  preset: WorkspaceImagePresetDto
+): GenerationMappedPreset {
+  return imagePresetToMappedPreset(preset)
+}
+
+function enabledVideoPresets(presets: WorkspaceImagePresetDto[]) {
+  return enabledImagePresets(presets)
+}
+
+function defaultVideoFeatureControls(): WorkspaceVideoFeatureControlsDto {
+  return {
+    first_frame_image: true,
+    last_frame_image: true,
+    reference_image_upload: true,
+    duration_control: true,
+    ratio_control: true,
+    resolution_control: true,
+    frame_rate_control: true,
+    style_control: true,
+    quality_control: true,
+    negative_prompt: true,
+    audio_track: true,
+    camera_control: true,
+    seed_control: true,
+  }
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'object' && error && 'response' in error) {
+    const response = (error as { response?: { data?: unknown } }).response
+    const data = response?.data
+    if (typeof data === 'object' && data) {
+      const message = (data as { message?: string }).message
+      if (message) return message
+      const openAIError = (data as { error?: { message?: string } }).error
+      if (openAIError?.message) return openAIError.message
+    }
+  }
+  if (error instanceof Error && error.message) return error.message
+  return fallback
+}
+
+async function downloadGeneratedImage(item: GeneratedItem) {
+  const source = normalizeImageSource(item)
+  if (!source) return false
+  const fileName = `${item.kind}-${item.id}.png`
+  if (item.b64Json) {
+    const link = document.createElement('a')
+    link.href = source
+    link.download = fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    return true
+  }
+  const response = await fetch(source)
+  const blob = await response.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(objectUrl)
+  return true
 }
 
 export function WorkspaceImageGeneration() {
@@ -129,12 +241,43 @@ export function WorkspaceVideoGeneration() {
 function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
   const { t, i18n } = useTranslation()
   const zhLanguage = isZhLanguage(i18n.language)
-  const { data: modelsData } = useAvailableModels()
-  const models = useMemo(
-    () => Array.from(new Set((modelsData || []).filter(Boolean))),
-    [modelsData]
+  const isImage = kind === 'image'
+  const { data: imageModelsData } = useQuery({
+    queryKey: ['workspace-image-models'],
+    queryFn: async () => (await getWorkspaceImageModels()).data || [],
+    staleTime: 60_000,
+    enabled: isImage,
+  })
+  const { data: videoModelsData } = useQuery({
+    queryKey: ['workspace-video-models'],
+    queryFn: async () => (await getWorkspaceVideoModels()).data || [],
+    staleTime: 60_000,
+    enabled: !isImage,
+  })
+  const imageModels = useMemo(
+    () => (imageModelsData || []).filter((item) => item.model),
+    [imageModelsData]
   )
-  const fallbackModel = models[0] || ''
+  const videoModels = useMemo(
+    () => (videoModelsData || []).filter((item) => item.model),
+    [videoModelsData]
+  )
+  const modelOptions = useMemo(
+    () =>
+      isImage
+        ? imageModels.map((item) => ({
+            value: item.model,
+            label: item.display_name || item.model_alias || item.model,
+            category: item.category_display,
+          }))
+        : videoModels.map((item) => ({
+            value: item.model,
+            label: item.display_name || item.model_alias || item.model,
+            category: item.category_display,
+          })),
+    [imageModels, isImage, videoModels]
+  )
+  const fallbackModel = modelOptions[0]?.value || ''
   const [model, setModel] = useState(fallbackModel)
   const [prompt, setPrompt] = useState('')
   const [negativePrompt, setNegativePrompt] = useState('')
@@ -159,31 +302,370 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [items, setItems] = useState<GeneratedItem[]>([])
   const effectiveModel = model || fallbackModel
+  const selectedImageModel = useMemo(
+    () => imageModels.find((item) => item.model === effectiveModel),
+    [effectiveModel, imageModels]
+  )
+  const selectedVideoModel = useMemo(
+    () => videoModels.find((item) => item.model === effectiveModel),
+    [effectiveModel, videoModels]
+  )
+  const imageFeatureControls: WorkspaceImageFeatureControlsDto = useMemo(
+    () =>
+      selectedImageModel?.feature_controls || {
+        reference_image_upload: true,
+        size_control: true,
+        ratio_control: true,
+        style_control: true,
+        quality_control: true,
+      },
+    [selectedImageModel?.feature_controls]
+  )
+  const imageSizePresets = useMemo(
+    () =>
+      selectedImageModel
+        ? enabledImagePresets(selectedImageModel.size_presets).map(
+            (item) => item.value
+          )
+        : IMAGE_SIZE_PRESETS,
+    [selectedImageModel]
+  )
+  const imageRatioPresets = useMemo(
+    () =>
+      selectedImageModel
+        ? enabledImagePresets(selectedImageModel.ratio_presets).map(
+            (item) => item.value
+          )
+        : IMAGE_RATIO_PRESETS,
+    [selectedImageModel]
+  )
+  const imageStylePresets = useMemo(
+    () =>
+      selectedImageModel
+        ? enabledImagePresets(selectedImageModel.style_presets).map(
+            imagePresetToMappedPreset
+          )
+        : IMAGE_STYLE_PRESETS,
+    [selectedImageModel]
+  )
+  const imageQualityPresets = useMemo(
+    () =>
+      selectedImageModel
+        ? enabledImagePresets(selectedImageModel.quality_presets).map(
+            imagePresetToMappedPreset
+          )
+        : IMAGE_QUALITY_PRESETS,
+    [selectedImageModel]
+  )
+  const videoFeatureControls: WorkspaceVideoFeatureControlsDto = useMemo(
+    () => selectedVideoModel?.feature_controls || defaultVideoFeatureControls(),
+    [selectedVideoModel?.feature_controls]
+  )
+  const videoResolutionPresets = useMemo(
+    () =>
+      selectedVideoModel
+        ? enabledVideoPresets(selectedVideoModel.resolution_presets).map(
+            (item) => item.value
+          )
+        : VIDEO_RESOLUTION_PRESETS,
+    [selectedVideoModel]
+  )
+  const videoRatioPresets = useMemo(
+    () =>
+      selectedVideoModel
+        ? enabledVideoPresets(selectedVideoModel.ratio_presets).map(
+            (item) => item.value
+          )
+        : VIDEO_RATIO_PRESETS,
+    [selectedVideoModel]
+  )
+  const videoDurationPresets = useMemo(
+    () =>
+      selectedVideoModel
+        ? enabledVideoPresets(selectedVideoModel.duration_presets).map(
+            (item) => item.value
+          )
+        : VIDEO_DURATION_PRESETS,
+    [selectedVideoModel]
+  )
+  const videoFrameRatePresets = useMemo(
+    () =>
+      selectedVideoModel
+        ? enabledVideoPresets(selectedVideoModel.frame_rate_presets).map(
+            (item) => item.value
+          )
+        : VIDEO_FRAME_RATE_PRESETS,
+    [selectedVideoModel]
+  )
+  const videoStylePresets = useMemo(
+    () =>
+      selectedVideoModel
+        ? enabledVideoPresets(selectedVideoModel.style_presets).map(
+            videoPresetToMappedPreset
+          )
+        : IMAGE_STYLE_PRESETS,
+    [selectedVideoModel]
+  )
+  const videoQualityPresets = useMemo(
+    () =>
+      selectedVideoModel
+        ? enabledVideoPresets(selectedVideoModel.quality_presets).map(
+            videoPresetToMappedPreset
+          )
+        : VIDEO_QUALITY_PRESETS,
+    [selectedVideoModel]
+  )
 
-  const generate = () => {
+  useEffect(() => {
+    if (!fallbackModel) return
+    if (!model || !modelOptions.some((item) => item.value === model)) {
+      setModel(fallbackModel)
+    }
+  }, [fallbackModel, model, modelOptions])
+
+  useEffect(() => {
+    if (!isImage) return
+    setSize((current) => firstOrCurrent(imageSizePresets, current, IMAGE_SIZE_PRESETS[0]))
+    setRatio((current) =>
+      firstOrCurrent(imageRatioPresets, current, IMAGE_RATIO_PRESETS[0])
+    )
+    setStyle((current) =>
+      firstOrCurrent(
+        imageStylePresets,
+        current,
+        IMAGE_STYLE_PRESETS[0]?.value || ''
+      )
+    )
+    setQuality((current) =>
+      firstOrCurrent(
+        imageQualityPresets,
+        current,
+        IMAGE_QUALITY_PRESETS[0]?.value || ''
+      )
+    )
+  }, [
+    imageQualityPresets,
+    imageRatioPresets,
+    imageSizePresets,
+    imageStylePresets,
+    isImage,
+    selectedImageModel?.id,
+  ])
+
+  useEffect(() => {
+    if (isImage) return
+    setSize((current) =>
+      firstOrCurrent(videoResolutionPresets, current, VIDEO_RESOLUTION_PRESETS[0])
+    )
+    setRatio((current) =>
+      firstOrCurrent(videoRatioPresets, current, VIDEO_RATIO_PRESETS[0])
+    )
+    setDuration((current) =>
+      firstOrCurrent(videoDurationPresets, current, VIDEO_DURATION_PRESETS[0])
+    )
+    setFrameRate((current) =>
+      firstOrCurrent(videoFrameRatePresets, current, VIDEO_FRAME_RATE_PRESETS[0])
+    )
+    setStyle((current) =>
+      firstOrCurrent(videoStylePresets, current, IMAGE_STYLE_PRESETS[0]?.value || '')
+    )
+    setQuality((current) =>
+      firstOrCurrent(
+        videoQualityPresets,
+        current,
+        VIDEO_QUALITY_PRESETS[0]?.value || ''
+      )
+    )
+  }, [
+    isImage,
+    selectedVideoModel?.id,
+    videoDurationPresets,
+    videoFrameRatePresets,
+    videoQualityPresets,
+    videoRatioPresets,
+    videoResolutionPresets,
+    videoStylePresets,
+  ])
+
+  useEffect(() => {
+    if (isImage) return
+    const pending = items.filter(
+      (item) =>
+        item.kind === 'video' &&
+        item.taskId &&
+        !item.videoUrl &&
+        item.status !== 'failed' &&
+        item.status !== 'ready'
+    )
+    if (pending.length === 0) return
+    let cancelled = false
+    const timer = window.setInterval(async () => {
+      for (const item of pending) {
+        if (!item.taskId || cancelled) continue
+        try {
+          const response = await getWorkspaceVideoTask(item.taskId)
+          const data = response.data
+          const status = String(data?.status || '').toLowerCase()
+          const videoUrl =
+            data?.url ||
+            data?.result_url ||
+            (typeof data?.data === 'object' && data.data
+              ? String(
+                  (data.data as { url?: string; result_url?: string }).url ||
+                    (data.data as { result_url?: string }).result_url ||
+                    ''
+                )
+              : '')
+          setItems((current) =>
+            current.map((currentItem) => {
+              if (currentItem.id !== item.id) return currentItem
+              if (status === 'success' || status === 'succeeded' || videoUrl) {
+                return {
+                  ...currentItem,
+                  status: 'ready',
+                  videoUrl: videoUrl || currentItem.videoUrl,
+                }
+              }
+              if (status === 'failure' || status === 'failed') {
+                return { ...currentItem, status: 'failed' }
+              }
+              return {
+                ...currentItem,
+                status:
+                  status === 'queued' || status === 'submitted'
+                    ? 'queued'
+                    : 'processing',
+              }
+            })
+          )
+        } catch {
+          // Keep polling; transient fetch failures are common while tasks run.
+        }
+      }
+    }, 5000)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [isImage, items])
+
+  const generate = async () => {
     if (!prompt.trim()) {
       toast.error(t('Prompt is required'))
       return
     }
+    if (!effectiveModel) {
+      toast.error(t('Model not found'))
+      return
+    }
     setIsGenerating(true)
-    window.setTimeout(() => {
-      const nextCount = kind === 'image' ? count : 1
-      const nextItems = Array.from({ length: nextCount }, (_, index) => ({
-        id: `${kind}-${Date.now()}-${index}`,
-        kind,
-        prompt,
-        model: effectiveModel || t('Model not found'),
-        status: 'ready' as const,
-        size,
-        ratio,
-        quality,
-        duration,
-        frameRate,
-      }))
-      setItems((current) => [...nextItems, ...current])
+    try {
+      if (kind === 'image') {
+        const payload = {
+          model: effectiveModel,
+          prompt: prompt.trim(),
+          n: count,
+          size: imageFeatureControls.size_control ? size : undefined,
+          quality: imageFeatureControls.quality_control ? quality : undefined,
+          style: imageFeatureControls.style_control ? style : undefined,
+          response_format: 'url' as const,
+        }
+        const response = await generateWorkspaceImage(payload)
+        const resultData = Array.isArray(response.data) ? response.data : []
+        if (resultData.length === 0) {
+          toast.error(t('No generation results returned'))
+          return
+        }
+        const modelLabel =
+          modelOptions.find((item) => item.value === effectiveModel)?.label ||
+          effectiveModel
+        const nextItems = resultData.map((item, index) => ({
+          id: `${kind}-${Date.now()}-${index}`,
+          kind,
+          prompt,
+          revisedPrompt: item.revised_prompt,
+          model: modelLabel,
+          status: 'ready' as const,
+          imageUrl: item.url,
+          b64Json: item.b64_json,
+          size,
+          ratio,
+          quality,
+        }))
+        setItems((current) => [...nextItems, ...current])
+        toast.success(t('Image generated'))
+        return
+      }
+
+      const durationNumber = Number.parseInt(duration, 10)
+      const metadata: Record<string, unknown> = {
+        source: 'workspace_video',
+      }
+      if (videoFeatureControls.ratio_control) metadata.ratio = ratio
+      if (videoFeatureControls.frame_rate_control) metadata.frame_rate = frameRate
+      if (videoFeatureControls.style_control) metadata.style = style
+      if (videoFeatureControls.quality_control) metadata.quality = quality
+      if (videoFeatureControls.negative_prompt && negativePrompt.trim()) {
+        metadata.negative_prompt = negativePrompt.trim()
+      }
+      if (videoFeatureControls.audio_track) metadata.audio = audioEnabled
+      if (videoFeatureControls.seed_control && seedEnabled && seed.trim()) {
+        metadata.seed = seed.trim()
+      }
+      const response = await generateWorkspaceVideo({
+        model: effectiveModel,
+        prompt: prompt.trim(),
+        size: videoFeatureControls.resolution_control ? size : undefined,
+        duration:
+          videoFeatureControls.duration_control && Number.isFinite(durationNumber)
+            ? durationNumber
+            : undefined,
+        metadata,
+      })
+      const taskId =
+        response.task_id ||
+        response.id ||
+        (typeof response.data === 'object' && response.data
+          ? String(
+              (response.data as { task_id?: string; id?: string }).task_id ||
+                (response.data as { id?: string }).id ||
+                ''
+            )
+          : '')
+      if (!taskId) {
+        toast.error(response.message || t('No generation results returned'))
+        return
+      }
+      const modelLabel =
+        modelOptions.find((item) => item.value === effectiveModel)?.label ||
+        effectiveModel
+      setItems((current) => [
+        {
+          id: `${kind}-${Date.now()}-0`,
+          taskId,
+          kind,
+          prompt,
+          model: modelLabel,
+          status: 'queued' as const,
+          size,
+          ratio,
+          quality,
+          duration,
+          frameRate,
+        },
+        ...current,
+      ])
+      toast.success(t('Video task submitted'))
+    } catch (error) {
+      toast.error(
+        getErrorMessage(
+          error,
+          kind === 'image' ? t('Image generation failed') : t('Video generation failed')
+        )
+      )
+    } finally {
       setIsGenerating(false)
-      toast.success(kind === 'image' ? t('Image generated') : t('Video generated'))
-    }, 900)
+    }
   }
 
   return (
@@ -199,17 +681,26 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
             <CardContent className='space-y-4'>
               <Field label={t('Model')}>
                 <Select
-                  value={effectiveModel}
-                  onValueChange={(value) => value && setModel(value)}
+                  value={effectiveModel || '__empty__'}
+                  onValueChange={(value) =>
+                    value && value !== '__empty__' && setModel(value)
+                  }
                 >
                   <SelectTrigger className='w-full'>
                     <SelectValue placeholder={t('Model not found')} />
                   </SelectTrigger>
                   <SelectContent>
-                    {models.length > 0 ? (
-                      models.map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {item}
+                    {modelOptions.length > 0 ? (
+                      modelOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          <span className='flex flex-col'>
+                            <span>{item.label}</span>
+                            {item.category ? (
+                              <span className='text-muted-foreground text-xs'>
+                                {item.category}
+                              </span>
+                            ) : null}
+                          </span>
                         </SelectItem>
                       ))
                     ) : (
@@ -234,14 +725,16 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                 />
               </Field>
 
-              <Field label={t('Negative prompt')}>
-                <Textarea
-                  className='min-h-16 resize-none'
-                  value={negativePrompt}
-                  onChange={(event) => setNegativePrompt(event.target.value)}
-                  placeholder={t('Elements to avoid')}
-                />
-              </Field>
+              {(kind === 'image' || videoFeatureControls.negative_prompt) && (
+                <Field label={t('Negative prompt')}>
+                  <Textarea
+                    className='min-h-16 resize-none'
+                    value={negativePrompt}
+                    onChange={(event) => setNegativePrompt(event.target.value)}
+                    placeholder={t('Elements to avoid')}
+                  />
+                </Field>
+              )}
 
               {kind === 'image' ? (
                 <ImageControls
@@ -260,20 +753,34 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   onCountChange={setCount}
                   onSeedEnabledChange={setSeedEnabled}
                   onSeedChange={setSeed}
+                  featureControls={imageFeatureControls}
+                  sizePresets={imageSizePresets}
+                  ratioPresets={imageRatioPresets}
+                  stylePresets={imageStylePresets}
+                  qualityPresets={imageQualityPresets}
                 />
               ) : (
                 <VideoControls
                   zhLanguage={zhLanguage}
                   size={size}
                   ratio={ratio}
+                  style={style}
                   duration={duration}
                   frameRate={frameRate}
                   quality={quality}
                   seedEnabled={seedEnabled}
                   seed={seed}
                   audioEnabled={audioEnabled}
+                  featureControls={videoFeatureControls}
+                  resolutionPresets={videoResolutionPresets}
+                  ratioPresets={videoRatioPresets}
+                  durationPresets={videoDurationPresets}
+                  frameRatePresets={videoFrameRatePresets}
+                  stylePresets={videoStylePresets}
+                  qualityPresets={videoQualityPresets}
                   onSizeChange={setSize}
                   onRatioChange={setRatio}
+                  onStyleChange={setStyle}
                   onDurationChange={setDuration}
                   onFrameRateChange={setFrameRate}
                   onQualityChange={setQuality}
@@ -322,6 +829,11 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
 
 function ImageControls(props: {
   zhLanguage: boolean
+  featureControls: WorkspaceImageFeatureControlsDto
+  sizePresets: string[]
+  ratioPresets: string[]
+  stylePresets: GenerationMappedPreset[]
+  qualityPresets: GenerationMappedPreset[]
   size: string
   ratio: string
   style: string
@@ -340,35 +852,50 @@ function ImageControls(props: {
   const { t } = useTranslation()
   return (
     <>
-      <UploadField label={t('Reference image')} />
-      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2'>
-        <PresetSelect
-          label={t('Size presets')}
-          value={props.size}
-          values={IMAGE_SIZE_PRESETS}
-          onChange={props.onSizeChange}
-        />
-        <PresetSelect
-          label={t('Ratio presets')}
-          value={props.ratio}
-          values={IMAGE_RATIO_PRESETS}
-          onChange={props.onRatioChange}
-        />
-        <MappedPresetSelect
-          label={t('Style presets')}
-          value={props.style}
-          values={IMAGE_STYLE_PRESETS}
-          zhLanguage={props.zhLanguage}
-          onChange={props.onStyleChange}
-        />
-        <MappedPresetSelect
-          label={t('Quality presets')}
-          value={props.quality}
-          values={IMAGE_QUALITY_PRESETS}
-          zhLanguage={props.zhLanguage}
-          onChange={props.onQualityChange}
-        />
-      </div>
+      {props.featureControls.reference_image_upload && (
+        <UploadField label={t('Reference image')} />
+      )}
+      {(props.featureControls.size_control ||
+        props.featureControls.ratio_control ||
+        props.featureControls.style_control ||
+        props.featureControls.quality_control) && (
+        <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2'>
+          {props.featureControls.size_control && (
+            <PresetSelect
+              label={t('Size presets')}
+              value={props.size}
+              values={props.sizePresets}
+              onChange={props.onSizeChange}
+            />
+          )}
+          {props.featureControls.ratio_control && (
+            <PresetSelect
+              label={t('Ratio presets')}
+              value={props.ratio}
+              values={props.ratioPresets}
+              onChange={props.onRatioChange}
+            />
+          )}
+          {props.featureControls.style_control && (
+            <MappedPresetSelect
+              label={t('Style presets')}
+              value={props.style}
+              values={props.stylePresets}
+              zhLanguage={props.zhLanguage}
+              onChange={props.onStyleChange}
+            />
+          )}
+          {props.featureControls.quality_control && (
+            <MappedPresetSelect
+              label={t('Quality presets')}
+              value={props.quality}
+              values={props.qualityPresets}
+              zhLanguage={props.zhLanguage}
+              onChange={props.onQualityChange}
+            />
+          )}
+        </div>
+      )}
       <Field label={t('Generation count')}>
         <Input
           type='number'
@@ -387,8 +914,16 @@ function ImageControls(props: {
 
 function VideoControls(props: {
   zhLanguage: boolean
+  featureControls: WorkspaceVideoFeatureControlsDto
+  resolutionPresets: string[]
+  ratioPresets: string[]
+  durationPresets: string[]
+  frameRatePresets: string[]
+  stylePresets: GenerationMappedPreset[]
+  qualityPresets: GenerationMappedPreset[]
   size: string
   ratio: string
+  style: string
   duration: string
   frameRate: string
   quality: string
@@ -397,6 +932,7 @@ function VideoControls(props: {
   audioEnabled: boolean
   onSizeChange: (value: string) => void
   onRatioChange: (value: string) => void
+  onStyleChange: (value: string) => void
   onDurationChange: (value: string) => void
   onFrameRateChange: (value: string) => void
   onQualityChange: (value: string) => void
@@ -407,53 +943,86 @@ function VideoControls(props: {
   const { t } = useTranslation()
   return (
     <>
-      <div className='grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3'>
-        <UploadField label={t('First frame image')} compact />
-        <UploadField label={t('Last frame image')} compact />
-        <UploadField label={t('Reference image')} compact />
-      </div>
+      {(props.featureControls.first_frame_image ||
+        props.featureControls.last_frame_image ||
+        props.featureControls.reference_image_upload) && (
+        <div className='grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3'>
+          {props.featureControls.first_frame_image && (
+            <UploadField label={t('First frame image')} compact />
+          )}
+          {props.featureControls.last_frame_image && (
+            <UploadField label={t('Last frame image')} compact />
+          )}
+          {props.featureControls.reference_image_upload && (
+            <UploadField label={t('Reference image')} compact />
+          )}
+        </div>
+      )}
       <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2'>
-        <PresetSelect
-          label={t('Resolution presets')}
-          value={props.size}
-          values={VIDEO_RESOLUTION_PRESETS}
-          onChange={props.onSizeChange}
-        />
-        <PresetSelect
-          label={t('Ratio presets')}
-          value={props.ratio}
-          values={VIDEO_RATIO_PRESETS}
-          onChange={props.onRatioChange}
-        />
-        <PresetSelect
-          label={t('Duration presets')}
-          value={props.duration}
-          values={VIDEO_DURATION_PRESETS}
-          onChange={props.onDurationChange}
-        />
-        <PresetSelect
-          label={t('Frame rate presets')}
-          value={props.frameRate}
-          values={VIDEO_FRAME_RATE_PRESETS}
-          onChange={props.onFrameRateChange}
-        />
-        <MappedPresetSelect
-          label={t('Quality presets')}
-          value={props.quality}
-          values={VIDEO_QUALITY_PRESETS}
-          zhLanguage={props.zhLanguage}
-          onChange={props.onQualityChange}
-        />
+        {props.featureControls.resolution_control && (
+          <PresetSelect
+            label={t('Resolution presets')}
+            value={props.size}
+            values={props.resolutionPresets}
+            onChange={props.onSizeChange}
+          />
+        )}
+        {props.featureControls.ratio_control && (
+          <PresetSelect
+            label={t('Ratio presets')}
+            value={props.ratio}
+            values={props.ratioPresets}
+            onChange={props.onRatioChange}
+          />
+        )}
+        {props.featureControls.duration_control && (
+          <PresetSelect
+            label={t('Duration presets')}
+            value={props.duration}
+            values={props.durationPresets}
+            onChange={props.onDurationChange}
+          />
+        )}
+        {props.featureControls.frame_rate_control && (
+          <PresetSelect
+            label={t('Frame rate presets')}
+            value={props.frameRate}
+            values={props.frameRatePresets}
+            onChange={props.onFrameRateChange}
+          />
+        )}
+        {props.featureControls.style_control && (
+          <MappedPresetSelect
+            label={t('Style presets')}
+            value={props.style}
+            values={props.stylePresets}
+            zhLanguage={props.zhLanguage}
+            onChange={props.onStyleChange}
+          />
+        )}
+        {props.featureControls.quality_control && (
+          <MappedPresetSelect
+            label={t('Quality presets')}
+            value={props.quality}
+            values={props.qualityPresets}
+            zhLanguage={props.zhLanguage}
+            onChange={props.onQualityChange}
+          />
+        )}
       </div>
-      <ToggleRow
-        label={t('Audio track')}
-        checked={props.audioEnabled}
-        onCheckedChange={props.onAudioEnabledChange}
-      />
-      <Field label={t('Camera movement')}>
-        <Input placeholder={t('Static, push in, pan left...')} />
-      </Field>
-      <SeedField {...props} />
+      {props.featureControls.audio_track && (
+        <ToggleRow
+          label={t('Audio track')}
+          checked={props.audioEnabled}
+          onCheckedChange={props.onAudioEnabledChange}
+        />
+      )}
+      {props.featureControls.camera_control && (
+        <Field label={t('Camera movement')}>
+          <Input placeholder={t('Static, push in, pan left...')} />
+        </Field>
+      )}
+      {props.featureControls.seed_control && <SeedField {...props} />}
     </>
   )
 }
@@ -475,9 +1044,6 @@ function GenerationResults(props: {
           <h2 className='text-lg font-medium'>
             {props.kind === 'image' ? t('Generated images') : t('Generated videos')}
           </h2>
-          <p className='text-muted-foreground text-sm'>
-            {t('Mock results are kept in this browser session.')}
-          </p>
         </div>
       </div>
 
@@ -541,11 +1107,23 @@ function ResultCard(props: {
     <Card className='rounded-lg'>
       <div
         className={cn(
-          'from-muted to-muted/40 flex items-center justify-center bg-linear-to-br',
+          'bg-muted/30 flex items-center justify-center overflow-hidden',
           props.item.kind === 'image' ? 'aspect-square' : 'aspect-video'
         )}
       >
-        {props.item.kind === 'image' ? (
+        {props.item.kind === 'image' && normalizeImageSource(props.item) ? (
+          <img
+            src={normalizeImageSource(props.item)}
+            alt={props.item.revisedPrompt || props.item.prompt}
+            className='size-full object-cover'
+          />
+        ) : props.item.kind === 'video' && props.item.videoUrl ? (
+          <video
+            src={props.item.videoUrl}
+            controls
+            className='size-full object-cover'
+          />
+        ) : props.item.kind === 'image' ? (
           <ImagePlus className='text-muted-foreground size-10' />
         ) : (
           <Video className='text-muted-foreground size-10' />
@@ -554,7 +1132,7 @@ function ResultCard(props: {
       <CardContent className='space-y-3'>
         <div className='space-y-1'>
           <div className='line-clamp-2 text-sm font-medium'>
-            {props.item.prompt}
+            {props.item.revisedPrompt || props.item.prompt}
           </div>
           <div className='text-muted-foreground text-xs'>
             {props.item.model} / {props.item.size} / {props.item.ratio}
@@ -562,13 +1140,28 @@ function ResultCard(props: {
               ? ` / ${props.item.duration} / ${props.item.frameRate}`
               : ''}
           </div>
+          {props.item.taskId && (
+            <div className='text-muted-foreground text-xs'>
+              {t('Task ID')}: {props.item.taskId} / {t('Status')}:{' '}
+              {props.item.status}
+            </div>
+          )}
         </div>
         <Separator />
         <div className='flex flex-wrap gap-1.5'>
           <Button
             size='sm'
             variant='outline'
-            onClick={() => toast.info(t('Download will be connected later'))}
+            onClick={async () => {
+              try {
+                const ok = await downloadGeneratedImage(props.item)
+                if (!ok) {
+                  toast.error(t('No downloadable image found'))
+                }
+              } catch (error) {
+                toast.error(getErrorMessage(error, t('Download failed')))
+              }
+            }}
           >
             <Download />
             {t('Download')}
@@ -626,7 +1219,7 @@ function PresetSelect(props: {
 function MappedPresetSelect(props: {
   label: string
   value: string
-  values: WorkspaceMappedPreset[]
+  values: GenerationMappedPreset[]
   zhLanguage: boolean
   onChange: (value: string) => void
 }) {

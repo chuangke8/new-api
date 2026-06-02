@@ -13,6 +13,7 @@ import (
 type taskCenterResponse struct {
 	ID               int64  `json:"id"`
 	Source           string `json:"source"`
+	SubmitSource     string `json:"submit_source"`
 	SourceID         string `json:"source_id"`
 	TaskID           string `json:"task_id"`
 	UserID           int    `json:"user_id"`
@@ -48,6 +49,7 @@ func parseTaskCenterQuery(c *gin.Context, admin bool) model.TaskCenterQueryParam
 		Model:          strings.TrimSpace(c.Query("model")),
 		User:           strings.TrimSpace(c.Query("user")),
 		Tag:            strings.TrimSpace(c.Query("tag")),
+		SubmitSource:   strings.TrimSpace(c.Query("submit_source")),
 		SubmittedStart: submittedStart,
 		SubmittedEnd:   submittedEnd,
 		UserID:         c.GetInt("id"),
@@ -68,10 +70,27 @@ func isTaskCenterAdmin(c *gin.Context) bool {
 	return model.IsAdmin(c.GetInt("id"))
 }
 
+func taskCenterDetailForRole(detail string, includeAdminFields bool) string {
+	if includeAdminFields || strings.TrimSpace(detail) == "" {
+		return detail
+	}
+	var parsed model.TaskCenterDetail
+	if err := common.UnmarshalJsonStr(detail, &parsed); err != nil {
+		return detail
+	}
+	parsed.Metadata = nil
+	b, err := common.Marshal(parsed)
+	if err != nil {
+		return detail
+	}
+	return string(b)
+}
+
 func taskCenterToResponse(record *model.TaskCenter, includeAdminFields bool) taskCenterResponse {
 	response := taskCenterResponse{
 		ID:               record.ID,
 		Source:           record.Source,
+		SubmitSource:     record.SubmitSource,
 		SourceID:         record.SourceID,
 		TaskID:           record.TaskID,
 		UserID:           record.UserID,
@@ -84,7 +103,7 @@ func taskCenterToResponse(record *model.TaskCenter, includeAdminFields bool) tas
 		Remark:           record.Remark,
 		SubmittedAt:      record.SubmittedAt,
 		CompletedAt:      record.CompletedAt,
-		Detail:           record.Detail,
+		Detail:           taskCenterDetailForRole(record.Detail, includeAdminFields),
 		ErrorMessage:     record.ErrorMessage,
 		CreatedAt:        record.CreatedAt,
 		UpdatedAt:        record.UpdatedAt,
@@ -95,6 +114,21 @@ func taskCenterToResponse(record *model.TaskCenter, includeAdminFields bool) tas
 		response.ErrorDetail = record.ErrorDetail
 	}
 	return response
+}
+
+func GetTaskCenterAsset(c *gin.Context) {
+	relativePath := strings.TrimPrefix(c.Param("path"), "/")
+	parts := strings.Split(relativePath, "/")
+	if len(parts) < 3 || strings.TrimSpace(parts[0]) == "" {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	path, ok := model.LocalTaskCenterAssetPath(relativePath)
+	if !ok {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	c.File(path)
 }
 
 func GetTaskCenter(c *gin.Context) {
@@ -130,6 +164,7 @@ func GetTaskCenterDetail(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	_ = model.NormalizeTaskCenterDetail(record)
 	common.ApiSuccess(c, taskCenterToResponse(record, admin))
 }
 

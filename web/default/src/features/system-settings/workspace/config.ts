@@ -137,7 +137,8 @@ export const WORKSPACE_MANAGER_CONFIGS: Record<
       {
         key: 'batchControl',
         labelKey: 'Generation count control',
-        descriptionKey: 'Allow users to generate multiple images in one request.',
+        descriptionKey:
+          'Allow users to submit multiple generation tasks in one click.',
         icon: Images,
       },
     ],
@@ -227,6 +228,13 @@ export const WORKSPACE_MANAGER_CONFIGS: Record<
         labelKey: 'Seed control',
         descriptionKey: 'Allow users to set deterministic seed values.',
         icon: Gauge,
+      },
+      {
+        key: 'batchControl',
+        labelKey: 'Generation count control',
+        descriptionKey:
+          'Allow users to submit multiple generation tasks in one click.',
+        icon: Images,
       },
     ],
   },
@@ -429,6 +437,7 @@ export const createDefaultChannels = (
         durationPresets: VIDEO_DURATION_PRESETS,
         frameRatePresets: VIDEO_FRAME_RATE_PRESETS,
         qualityPresets: VIDEO_QUALITY_PRESETS,
+        maxBatchSize: 1,
         capabilities: enabledCapabilities(capabilityKeys),
         disabled: false,
         remark: 'Mock frontend configuration; backend persistence pending.',
@@ -496,7 +505,7 @@ export const createEmptyChannel = (
           : undefined,
     durationPresets: kind === 'video' ? VIDEO_DURATION_PRESETS : undefined,
     frameRatePresets: kind === 'video' ? VIDEO_FRAME_RATE_PRESETS : undefined,
-    maxBatchSize: kind === 'image' ? 4 : undefined,
+    maxBatchSize: kind === 'image' ? 4 : kind === 'video' ? 1 : undefined,
     capabilities: enabledCapabilities(config.capabilities.map((item) => item.key)),
     disabled: false,
     remark: '',

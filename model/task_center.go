@@ -89,22 +89,26 @@ type TaskCenterQueryParams struct {
 }
 
 type TaskCenterDetail struct {
-	Prompt          string         `json:"prompt,omitempty"`
-	NegativePrompt  string         `json:"negative_prompt,omitempty"`
-	InputText       string         `json:"input_text,omitempty"`
-	OutputText      string         `json:"output_text,omitempty"`
-	Images          []string       `json:"images,omitempty"`
-	Videos          []string       `json:"videos,omitempty"`
-	Audios          []string       `json:"audios,omitempty"`
-	Files           []string       `json:"files,omitempty"`
-	ReferenceImages []string       `json:"reference_images,omitempty"`
-	Size            string         `json:"size,omitempty"`
-	Ratio           string         `json:"ratio,omitempty"`
-	Style           string         `json:"style,omitempty"`
-	Quality         string         `json:"quality,omitempty"`
-	Duration        string         `json:"duration,omitempty"`
-	Provider        string         `json:"provider,omitempty"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
+	Prompt            string         `json:"prompt,omitempty"`
+	NegativePrompt    string         `json:"negative_prompt,omitempty"`
+	InputText         string         `json:"input_text,omitempty"`
+	OutputText        string         `json:"output_text,omitempty"`
+	Images            []string       `json:"images,omitempty"`
+	Videos            []string       `json:"videos,omitempty"`
+	Audios            []string       `json:"audios,omitempty"`
+	Files             []string       `json:"files,omitempty"`
+	ReferenceImages   []string       `json:"reference_images,omitempty"`
+	ExpiredImages     []string       `json:"expired_images,omitempty"`
+	ExpiredVideos     []string       `json:"expired_videos,omitempty"`
+	ExpiredFiles      []string       `json:"expired_files,omitempty"`
+	ExpiredReferences []string       `json:"expired_reference_images,omitempty"`
+	Size              string         `json:"size,omitempty"`
+	Ratio             string         `json:"ratio,omitempty"`
+	Style             string         `json:"style,omitempty"`
+	Quality           string         `json:"quality,omitempty"`
+	Duration          string         `json:"duration,omitempty"`
+	Provider          string         `json:"provider,omitempty"`
+	Metadata          map[string]any `json:"metadata,omitempty"`
 }
 
 func uniqueStrings(values []string) []string {
@@ -127,6 +131,10 @@ func normalizeTaskCenterDetail(detail TaskCenterDetail) TaskCenterDetail {
 	detail.Audios = uniqueStrings(detail.Audios)
 	detail.Files = uniqueStrings(detail.Files)
 	detail.ReferenceImages = uniqueStrings(detail.ReferenceImages)
+	detail.ExpiredImages = uniqueStrings(detail.ExpiredImages)
+	detail.ExpiredVideos = uniqueStrings(detail.ExpiredVideos)
+	detail.ExpiredFiles = uniqueStrings(detail.ExpiredFiles)
+	detail.ExpiredReferences = uniqueStrings(detail.ExpiredReferences)
 	detail.Images = preferDisplayAssets(detail.Images)
 	detail.Videos = preferDisplayAssets(detail.Videos)
 	generated := map[string]bool{}
@@ -274,6 +282,10 @@ func mergeTaskCenterDetail(base TaskCenterDetail, next TaskCenterDetail) TaskCen
 	base.Audios = uniqueStrings(append(base.Audios, next.Audios...))
 	base.Files = uniqueStrings(append(base.Files, next.Files...))
 	base.ReferenceImages = uniqueStrings(append(base.ReferenceImages, next.ReferenceImages...))
+	base.ExpiredImages = uniqueStrings(append(base.ExpiredImages, next.ExpiredImages...))
+	base.ExpiredVideos = uniqueStrings(append(base.ExpiredVideos, next.ExpiredVideos...))
+	base.ExpiredFiles = uniqueStrings(append(base.ExpiredFiles, next.ExpiredFiles...))
+	base.ExpiredReferences = uniqueStrings(append(base.ExpiredReferences, next.ExpiredReferences...))
 	if base.Metadata == nil {
 		base.Metadata = map[string]any{}
 	}
@@ -339,6 +351,10 @@ func preserveTaskCenterDetail(existing TaskCenterDetail, incoming TaskCenterDeta
 	} else {
 		incoming.ReferenceImages = uniqueStrings(append(incoming.ReferenceImages, existing.ReferenceImages...))
 	}
+	incoming.ExpiredImages = uniqueStrings(append(incoming.ExpiredImages, existing.ExpiredImages...))
+	incoming.ExpiredVideos = uniqueStrings(append(incoming.ExpiredVideos, existing.ExpiredVideos...))
+	incoming.ExpiredFiles = uniqueStrings(append(incoming.ExpiredFiles, existing.ExpiredFiles...))
+	incoming.ExpiredReferences = uniqueStrings(append(incoming.ExpiredReferences, existing.ExpiredReferences...))
 	return normalizeTaskCenterDetail(incoming)
 }
 

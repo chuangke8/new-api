@@ -28,6 +28,7 @@ type WorkspaceVideoChannel struct {
 	ModelAlias        string `json:"model_alias" gorm:"type:varchar(255);default:''"`
 	CategoryId        int    `json:"category_id" gorm:"index;not null"`
 	FeatureControls   string `json:"feature_controls" gorm:"type:text"`
+	MaxBatchSize      int    `json:"max_batch_size" gorm:"default:1"`
 	ResolutionPresets string `json:"resolution_presets" gorm:"type:text"`
 	RatioPresets      string `json:"ratio_presets" gorm:"type:text"`
 	DurationPresets   string `json:"duration_presets" gorm:"type:text"`
@@ -63,6 +64,7 @@ type WorkspaceVideoFeatureControls struct {
 	AudioTrack           bool `json:"audio_track"`
 	CameraControl        bool `json:"camera_control"`
 	SeedControl          bool `json:"seed_control"`
+	BatchControl         bool `json:"batch_control"`
 }
 
 type WorkspaceVideoModel struct {
@@ -75,6 +77,7 @@ type WorkspaceVideoModel struct {
 	CategoryAlias     string                        `json:"category_alias"`
 	CategoryDisplay   string                        `json:"category_display"`
 	FeatureControls   WorkspaceVideoFeatureControls `json:"feature_controls"`
+	MaxBatchSize      int                           `json:"max_batch_size"`
 	ResolutionPresets []WorkspaceVideoPreset        `json:"resolution_presets"`
 	RatioPresets      []WorkspaceVideoPreset        `json:"ratio_presets"`
 	DurationPresets   []WorkspaceVideoPreset        `json:"duration_presets"`
@@ -98,6 +101,7 @@ func defaultWorkspaceVideoFeatureControls() WorkspaceVideoFeatureControls {
 		AudioTrack:           true,
 		CameraControl:        true,
 		SeedControl:          true,
+		BatchControl:         true,
 	}
 }
 
@@ -242,6 +246,9 @@ func CreateWorkspaceVideoChannel(channel *WorkspaceVideoChannel) error {
 	channel.Model = strings.TrimSpace(channel.Model)
 	channel.ModelAlias = strings.TrimSpace(channel.ModelAlias)
 	channel.Remark = strings.TrimSpace(channel.Remark)
+	if channel.MaxBatchSize <= 0 {
+		channel.MaxBatchSize = 1
+	}
 	channel.CreatedTime = now
 	channel.UpdatedTime = now
 	if strings.TrimSpace(channel.FeatureControls) == "" {
@@ -254,6 +261,9 @@ func UpdateWorkspaceVideoChannel(channel *WorkspaceVideoChannel) error {
 	channel.Model = strings.TrimSpace(channel.Model)
 	channel.ModelAlias = strings.TrimSpace(channel.ModelAlias)
 	channel.Remark = strings.TrimSpace(channel.Remark)
+	if channel.MaxBatchSize <= 0 {
+		channel.MaxBatchSize = 1
+	}
 	channel.UpdatedTime = common.GetTimestamp()
 	return DB.Model(&WorkspaceVideoChannel{}).Where("id = ?", channel.Id).Updates(map[string]interface{}{
 		"weight":             channel.Weight,
@@ -261,6 +271,7 @@ func UpdateWorkspaceVideoChannel(channel *WorkspaceVideoChannel) error {
 		"model_alias":        channel.ModelAlias,
 		"category_id":        channel.CategoryId,
 		"feature_controls":   channel.FeatureControls,
+		"max_batch_size":     channel.MaxBatchSize,
 		"resolution_presets": channel.ResolutionPresets,
 		"ratio_presets":      channel.RatioPresets,
 		"duration_presets":   channel.DurationPresets,
@@ -275,6 +286,46 @@ func UpdateWorkspaceVideoChannel(channel *WorkspaceVideoChannel) error {
 
 func DeleteWorkspaceVideoChannel(id int) error {
 	return DB.Delete(&WorkspaceVideoChannel{}, id).Error
+}
+
+func workspaceVideoChannelToModel(channel WorkspaceVideoChannel) WorkspaceVideoModel {
+	displayName := channel.ModelAlias
+	if displayName == "" {
+		displayName = channel.Model
+	}
+	categoryName := ""
+	categoryAlias := ""
+	categoryDisplay := ""
+	if channel.Category != nil {
+		categoryName = channel.Category.Name
+		categoryAlias = channel.Category.Alias
+		categoryDisplay = categoryAlias
+		if categoryDisplay == "" {
+			categoryDisplay = categoryName
+		}
+	}
+	maxBatchSize := channel.MaxBatchSize
+	if maxBatchSize <= 0 {
+		maxBatchSize = 1
+	}
+	return WorkspaceVideoModel{
+		Id:                channel.Id,
+		Model:             channel.Model,
+		ModelAlias:        channel.ModelAlias,
+		DisplayName:       displayName,
+		CategoryId:        channel.CategoryId,
+		CategoryName:      categoryName,
+		CategoryAlias:     categoryAlias,
+		CategoryDisplay:   categoryDisplay,
+		FeatureControls:   workspaceVideoFeatureControlsFromString(channel.FeatureControls),
+		MaxBatchSize:      maxBatchSize,
+		ResolutionPresets: workspaceVideoPresetsFromString(channel.ResolutionPresets),
+		RatioPresets:      workspaceVideoPresetsFromString(channel.RatioPresets),
+		DurationPresets:   workspaceVideoPresetsFromString(channel.DurationPresets),
+		FrameRatePresets:  workspaceVideoPresetsFromString(channel.FrameRatePresets),
+		StylePresets:      workspaceVideoPresetsFromString(channel.StylePresets),
+		QualityPresets:    workspaceVideoPresetsFromString(channel.QualityPresets),
+	}
 }
 
 func GetWorkspaceVideoModels() ([]WorkspaceVideoModel, error) {
@@ -295,40 +346,23 @@ func GetWorkspaceVideoModels() ([]WorkspaceVideoModel, error) {
 		if channel.Category != nil && channel.Category.Disabled {
 			continue
 		}
-		displayName := channel.ModelAlias
-		if displayName == "" {
-			displayName = channel.Model
-		}
-		categoryName := ""
-		categoryAlias := ""
-		categoryDisplay := ""
-		if channel.Category != nil {
-			categoryName = channel.Category.Name
-			categoryAlias = channel.Category.Alias
-			categoryDisplay = categoryAlias
-			if categoryDisplay == "" {
-				categoryDisplay = categoryName
-			}
-		}
-		models = append(models, WorkspaceVideoModel{
-			Id:                channel.Id,
-			Model:             channel.Model,
-			ModelAlias:        channel.ModelAlias,
-			DisplayName:       displayName,
-			CategoryId:        channel.CategoryId,
-			CategoryName:      categoryName,
-			CategoryAlias:     categoryAlias,
-			CategoryDisplay:   categoryDisplay,
-			FeatureControls:   workspaceVideoFeatureControlsFromString(channel.FeatureControls),
-			ResolutionPresets: workspaceVideoPresetsFromString(channel.ResolutionPresets),
-			RatioPresets:      workspaceVideoPresetsFromString(channel.RatioPresets),
-			DurationPresets:   workspaceVideoPresetsFromString(channel.DurationPresets),
-			FrameRatePresets:  workspaceVideoPresetsFromString(channel.FrameRatePresets),
-			StylePresets:      workspaceVideoPresetsFromString(channel.StylePresets),
-			QualityPresets:    workspaceVideoPresetsFromString(channel.QualityPresets),
-		})
+		models = append(models, workspaceVideoChannelToModel(channel))
 	}
 	return models, nil
+}
+
+func GetWorkspaceVideoModel(modelName string) (*WorkspaceVideoModel, error) {
+	var channel WorkspaceVideoChannel
+	if err := DB.Preload("Category").
+		Where("model = ? AND disabled = ?", strings.TrimSpace(modelName), false).
+		First(&channel).Error; err != nil {
+		return nil, err
+	}
+	if channel.Category != nil && channel.Category.Disabled {
+		return nil, errors.New("category is disabled")
+	}
+	model := workspaceVideoChannelToModel(channel)
+	return &model, nil
 }
 
 func GetWorkspaceVideoAvailableModels() []string {

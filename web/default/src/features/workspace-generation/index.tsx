@@ -33,16 +33,19 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { Main } from '@/components/layout'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import {
   Select,
   SelectContent,
@@ -53,6 +56,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { Main } from '@/components/layout'
 import {
   generateWorkspaceImage,
   generateWorkspaceVideo,
@@ -81,6 +85,18 @@ import { formatUnixTime, parseDetail } from '@/features/task-center/utils'
 
 type GenerationKind = 'image' | 'video'
 
+type BatchProgressState = {
+  open: boolean
+  kind: GenerationKind
+  total: number
+  current: number
+  completed: number
+  failed: number
+  status: 'running' | 'success' | 'error'
+  message: string
+  error: string
+}
+
 type GeneratedItem = {
   id: string
   kind: GenerationKind
@@ -106,6 +122,18 @@ type GenerationMappedPreset = WorkspaceMappedPreset & {
 type UploadedImage = {
   name: string
   dataUrl: string
+}
+
+const initialBatchProgress: BatchProgressState = {
+  open: false,
+  kind: 'image',
+  total: 1,
+  current: 0,
+  completed: 0,
+  failed: 0,
+  status: 'running',
+  message: '',
+  error: '',
 }
 
 const localizedPresetLabels: Record<string, string> = {
@@ -184,7 +212,8 @@ function readImageFileAsDataUrl(file: File): Promise<UploadedImage> {
         dataUrl: result,
       })
     }
-    reader.onerror = () => reject(reader.error || new Error('Failed to read image'))
+    reader.onerror = () =>
+      reject(reader.error || new Error('Failed to read image'))
     reader.readAsDataURL(file)
   })
 }
@@ -197,6 +226,37 @@ function videoPresetToMappedPreset(
 
 function enabledVideoPresets(presets: WorkspaceImagePresetDto[]) {
   return enabledImagePresets(presets)
+}
+
+function modelCategoryKey(item: {
+  category_id?: number
+  category_name?: string
+}) {
+  return String(item.category_id || item.category_name || 'default')
+}
+
+function modelCategoryLabel(
+  item: {
+    category_alias?: string
+    category_display?: string
+    category_name?: string
+  },
+  t: (key: string) => string
+) {
+  return (
+    item.category_alias ||
+    item.category_name ||
+    item.category_display ||
+    t('Default')
+  )
+}
+
+function modelChannelLabel(item: {
+  display_name?: string
+  model_alias?: string
+  model: string
+}) {
+  return item.model_alias || item.display_name || item.model
 }
 
 function defaultVideoFeatureControls(): WorkspaceVideoFeatureControlsDto {
@@ -214,6 +274,7 @@ function defaultVideoFeatureControls(): WorkspaceVideoFeatureControlsDto {
     audio_track: true,
     camera_control: true,
     seed_control: true,
+    batch_control: true,
   }
 }
 
@@ -247,9 +308,10 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 async function downloadGeneratedImage(item: GeneratedItem) {
-  const source = normalizeImageSource(item)
+  const source =
+    item.kind === 'video' ? item.videoUrl || '' : normalizeImageSource(item)
   if (!source) return false
-  const fileName = `${item.kind}-${item.id}.png`
+  const fileName = `${item.kind}-${item.id}.${item.kind === 'video' ? 'mp4' : 'png'}`
   if (item.b64Json) {
     const link = document.createElement('a')
     link.href = source
@@ -308,15 +370,9 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
   const imageModelGroups = useMemo(() => {
     const groups = new Map<string, string>()
     for (const item of imageModels) {
-      const key = String(item.category_id || item.category_name || 'default')
+      const key = modelCategoryKey(item)
       if (!groups.has(key)) {
-        groups.set(
-          key,
-          item.category_display ||
-            item.category_alias ||
-            item.category_name ||
-            t('Default')
-        )
+        groups.set(key, modelCategoryLabel(item, t))
       }
     }
     return Array.from(groups.entries()).map(([value, label]) => ({
@@ -324,34 +380,59 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
       label,
     }))
   }, [imageModels, t])
+  const videoModelGroups = useMemo(() => {
+    const groups = new Map<string, string>()
+    for (const item of videoModels) {
+      const key = modelCategoryKey(item)
+      if (!groups.has(key)) {
+        groups.set(key, modelCategoryLabel(item, t))
+      }
+    }
+    return Array.from(groups.entries()).map(([value, label]) => ({
+      value,
+      label,
+    }))
+  }, [videoModels, t])
   const [imageCategoryId, setImageCategoryId] = useState('')
+  const [videoCategoryId, setVideoCategoryId] = useState('')
   const filteredImageModels = useMemo(
     () =>
       imageCategoryId
         ? imageModels.filter(
-            (item) =>
-              String(item.category_id || item.category_name || 'default') ===
-              imageCategoryId
+            (item) => modelCategoryKey(item) === imageCategoryId
           )
         : imageModels,
     [imageCategoryId, imageModels]
+  )
+  const filteredVideoModels = useMemo(
+    () =>
+      videoCategoryId
+        ? videoModels.filter(
+            (item) => modelCategoryKey(item) === videoCategoryId
+          )
+        : videoModels,
+    [videoCategoryId, videoModels]
   )
   const modelOptions = useMemo(
     () =>
       isImage
         ? filteredImageModels.map((item) => ({
             value: item.model,
-            label: item.display_name || item.model_alias || item.model,
-            category: item.category_display,
+            label: modelChannelLabel(item),
+            category: modelCategoryLabel(item, t),
             channelId: item.id,
           }))
-        : videoModels.map((item) => ({
+        : filteredVideoModels.map((item) => ({
             value: item.model,
-            label: item.display_name || item.model_alias || item.model,
-            category: item.category_display,
+            label: modelChannelLabel(item),
+            category: modelCategoryLabel(item, t),
           })),
-    [filteredImageModels, isImage, videoModels]
+    [filteredImageModels, filteredVideoModels, isImage, t]
   )
+  const groupOptions = isImage ? imageModelGroups : videoModelGroups
+  const currentCategoryId = isImage ? imageCategoryId : videoCategoryId
+  const selectedGroupLabel =
+    groupOptions.find((item) => item.value === currentCategoryId)?.label || ''
   const fallbackModel = modelOptions[0]?.value || ''
   const [model, setModel] = useState(fallbackModel)
   const [prompt, setPrompt] = useState('')
@@ -371,15 +452,26 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
   const [duration, setDuration] = useState(VIDEO_DURATION_PRESETS[0])
   const [frameRate, setFrameRate] = useState(VIDEO_FRAME_RATE_PRESETS[0])
   const [count, setCount] = useState(1)
-  const [referenceImage, setReferenceImage] = useState<UploadedImage | null>(null)
-  const [firstFrameImage, setFirstFrameImage] = useState<UploadedImage | null>(null)
-  const [lastFrameImage, setLastFrameImage] = useState<UploadedImage | null>(null)
+  const [referenceImage, setReferenceImage] = useState<UploadedImage | null>(
+    null
+  )
+  const [firstFrameImage, setFirstFrameImage] = useState<UploadedImage | null>(
+    null
+  )
+  const [lastFrameImage, setLastFrameImage] = useState<UploadedImage | null>(
+    null
+  )
   const [seedEnabled, setSeedEnabled] = useState(false)
   const [seed, setSeed] = useState('')
   const [audioEnabled, setAudioEnabled] = useState(false)
+  const [cameraMovement, setCameraMovement] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [batchProgress, setBatchProgress] =
+    useState<BatchProgressState>(initialBatchProgress)
   const [items, setItems] = useState<GeneratedItem[]>([])
   const effectiveModel = model || fallbackModel
+  const selectedModelLabel =
+    modelOptions.find((item) => item.value === effectiveModel)?.label || ''
   const selectedImageModel = useMemo(
     () => imageModels.find((item) => item.model === effectiveModel),
     [effectiveModel, imageModels]
@@ -443,6 +535,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     () => selectedVideoModel?.feature_controls || defaultVideoFeatureControls(),
     [selectedVideoModel?.feature_controls]
   )
+  const videoMaxBatchSize = Math.max(1, selectedVideoModel?.max_batch_size || 1)
   const videoResolutionPresets = useMemo(
     () =>
       selectedVideoModel
@@ -512,6 +605,46 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     enabled: isImage,
     refetchInterval: isImage && isGenerating ? 5000 : false,
   })
+  const videoHistoryQuery = useQuery({
+    queryKey: ['workspace-video-generation-history'],
+    queryFn: async () => {
+      const response = await listTaskCenter({
+        p: 1,
+        page_size: 12,
+        task_type: 'video',
+        submit_source: 'workspace',
+      })
+      if (!response.success) throw new Error(response.message)
+      return response.data.items || []
+    },
+    enabled: !isImage,
+    refetchInterval: !isImage && isGenerating ? 5000 : false,
+  })
+
+  const updateBatchProgress = (patch: Partial<BatchProgressState>) => {
+    setBatchProgress((current) => ({
+      ...current,
+      ...patch,
+    }))
+  }
+
+  const openBatchProgress = (
+    targetKind: GenerationKind,
+    total: number,
+    message: string
+  ) => {
+    setBatchProgress({
+      open: true,
+      kind: targetKind,
+      total,
+      current: 0,
+      completed: 0,
+      failed: 0,
+      status: 'running',
+      message,
+      error: '',
+    })
+  }
 
   useEffect(() => {
     if (!isImage) return
@@ -519,10 +652,27 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
       setImageCategoryId('')
       return
     }
-    if (!imageCategoryId || !imageModelGroups.some((item) => item.value === imageCategoryId)) {
+    if (
+      !imageCategoryId ||
+      !imageModelGroups.some((item) => item.value === imageCategoryId)
+    ) {
       setImageCategoryId(imageModelGroups[0].value)
     }
   }, [imageCategoryId, imageModelGroups, isImage])
+
+  useEffect(() => {
+    if (isImage) return
+    if (videoModelGroups.length === 0) {
+      setVideoCategoryId('')
+      return
+    }
+    if (
+      !videoCategoryId ||
+      !videoModelGroups.some((item) => item.value === videoCategoryId)
+    ) {
+      setVideoCategoryId(videoModelGroups[0].value)
+    }
+  }, [isImage, videoCategoryId, videoModelGroups])
 
   useEffect(() => {
     if (!fallbackModel) return
@@ -533,7 +683,9 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
 
   useEffect(() => {
     if (!isImage) return
-    setSize((current) => firstOrCurrent(imageSizePresets, current, IMAGE_SIZE_PRESETS[0]))
+    setSize((current) =>
+      firstOrCurrent(imageSizePresets, current, IMAGE_SIZE_PRESETS[0])
+    )
     setRatio((current) =>
       firstOrCurrent(imageRatioPresets, current, IMAGE_RATIO_PRESETS[0])
     )
@@ -585,7 +737,11 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
   useEffect(() => {
     if (isImage) return
     setSize((current) =>
-      firstOrCurrent(videoResolutionPresets, current, VIDEO_RESOLUTION_PRESETS[0])
+      firstOrCurrent(
+        videoResolutionPresets,
+        current,
+        VIDEO_RESOLUTION_PRESETS[0]
+      )
     )
     setRatio((current) =>
       firstOrCurrent(videoRatioPresets, current, VIDEO_RATIO_PRESETS[0])
@@ -594,10 +750,18 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
       firstOrCurrent(videoDurationPresets, current, VIDEO_DURATION_PRESETS[0])
     )
     setFrameRate((current) =>
-      firstOrCurrent(videoFrameRatePresets, current, VIDEO_FRAME_RATE_PRESETS[0])
+      firstOrCurrent(
+        videoFrameRatePresets,
+        current,
+        VIDEO_FRAME_RATE_PRESETS[0]
+      )
     )
     setStyle((current) =>
-      firstOrCurrent(videoStylePresets, current, IMAGE_STYLE_PRESETS[0]?.value || '')
+      firstOrCurrent(
+        videoStylePresets,
+        current,
+        IMAGE_STYLE_PRESETS[0]?.value || ''
+      )
     )
     setQuality((current) =>
       firstOrCurrent(
@@ -615,6 +779,36 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     videoRatioPresets,
     videoResolutionPresets,
     videoStylePresets,
+  ])
+
+  useEffect(() => {
+    if (isImage) return
+    if (!videoFeatureControls.negative_prompt) {
+      setNegativePrompt('')
+    }
+    if (!videoFeatureControls.seed_control) {
+      setSeedEnabled(false)
+      setSeed('')
+    }
+    if (!videoFeatureControls.audio_track) {
+      setAudioEnabled(false)
+    }
+    if (!videoFeatureControls.camera_control) {
+      setCameraMovement('')
+    }
+    if (!videoFeatureControls.batch_control) {
+      setCount(1)
+      return
+    }
+    setCount((current) => Math.max(1, Math.min(videoMaxBatchSize, current)))
+  }, [
+    isImage,
+    videoFeatureControls.audio_track,
+    videoFeatureControls.batch_control,
+    videoFeatureControls.camera_control,
+    videoFeatureControls.negative_prompt,
+    videoFeatureControls.seed_control,
+    videoMaxBatchSize,
   ])
 
   useEffect(() => {
@@ -717,10 +911,8 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     setIsGenerating(true)
     try {
       if (kind === 'image') {
-        if (
-          imageFeatureControls.batch_control &&
-          count > imageMaxBatchSize
-        ) {
+        const submitCount = imageFeatureControls.batch_control ? count : 1
+        if (submitCount > imageMaxBatchSize) {
           toast.error(
             t('Generation count cannot exceed {{count}}', {
               count: imageMaxBatchSize,
@@ -728,6 +920,11 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
           )
           return
         }
+        openBatchProgress(
+          'image',
+          submitCount,
+          t('Preparing image generation...')
+        )
         const payload = {
           model: effectiveModel,
           prompt: prompt.trim(),
@@ -739,7 +936,6 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
             imageFeatureControls.reference_image_upload && referenceImage
               ? referenceImage.dataUrl
               : undefined,
-          n: imageFeatureControls.batch_control ? count : undefined,
           size: imageFeatureControls.size_control ? size : undefined,
           quality: imageFeatureControls.quality_control ? quality : undefined,
           style: imageFeatureControls.style_control ? style : undefined,
@@ -749,10 +945,50 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
               : undefined,
           response_format: 'url' as const,
         }
-        const response = await generateWorkspaceImage(payload)
-        const resultData = Array.isArray(response.data) ? response.data : []
+        const resultData = []
+        const errors: string[] = []
+        for (let index = 0; index < submitCount; index += 1) {
+          updateBatchProgress({
+            current: index + 1,
+            message: t('Generating image {{current}} of {{total}}', {
+              current: index + 1,
+              total: submitCount,
+            }),
+          })
+          try {
+            const response = await generateWorkspaceImage(payload)
+            const data = Array.isArray(response.data) ? response.data : []
+            if (data.length === 0) {
+              throw new Error(t('No generation results returned'))
+            }
+            resultData.push(...data)
+            updateBatchProgress({
+              completed: index + 1 - errors.length,
+              message: t('Generated {{completed}} of {{total}} images', {
+                completed: index + 1 - errors.length,
+                total: submitCount,
+              }),
+            })
+          } catch (error) {
+            const message = getErrorMessage(error, t('Image generation failed'))
+            errors.push(message)
+            updateBatchProgress({
+              failed: errors.length,
+              error: message,
+              message: t('Image {{current}} failed, continuing...', {
+                current: index + 1,
+              }),
+            })
+          }
+        }
         if (resultData.length === 0) {
-          toast.error(t('No generation results returned'))
+          const message = errors[0] || t('No generation results returned')
+          updateBatchProgress({
+            status: 'error',
+            message: t('Generation failed'),
+            error: message,
+          })
+          toast.error(message)
           return
         }
         const modelLabel =
@@ -775,22 +1011,58 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         await queryClient.invalidateQueries({
           queryKey: ['workspace-image-generation-history'],
         })
-        toast.success(t('Image generated'))
+        if (errors.length > 0) {
+          updateBatchProgress({
+            status: 'error',
+            completed: resultData.length,
+            failed: errors.length,
+            message: t('Completed with errors'),
+            error: errors[0],
+          })
+          toast.warning(t('Completed with errors'))
+        } else {
+          updateBatchProgress({
+            status: 'success',
+            completed: resultData.length,
+            failed: 0,
+            message: t('Image batch completed'),
+            error: '',
+          })
+          toast.success(t('Image generated'))
+        }
         return
       }
 
+      const submitCount = videoFeatureControls.batch_control ? count : 1
+      if (submitCount > videoMaxBatchSize) {
+        toast.error(
+          t('Generation count cannot exceed {{count}}', {
+            count: videoMaxBatchSize,
+          })
+        )
+        return
+      }
+      openBatchProgress(
+        'video',
+        submitCount,
+        t('Preparing video task submission...')
+      )
       const durationNumber = Number.parseInt(duration, 10)
       const metadata: Record<string, unknown> = {
         source: 'workspace_video',
       }
       if (videoFeatureControls.ratio_control) metadata.ratio = ratio
-      if (videoFeatureControls.frame_rate_control) metadata.frame_rate = frameRate
+      if (videoFeatureControls.frame_rate_control)
+        metadata.frame_rate = frameRate
       if (videoFeatureControls.style_control) metadata.style = style
       if (videoFeatureControls.quality_control) metadata.quality = quality
       if (videoFeatureControls.negative_prompt && negativePrompt.trim()) {
         metadata.negative_prompt = negativePrompt.trim()
       }
       if (videoFeatureControls.audio_track) metadata.audio = audioEnabled
+      if (videoFeatureControls.camera_control && cameraMovement.trim()) {
+        metadata.camera_movement = cameraMovement.trim()
+      }
       if (videoFeatureControls.seed_control && seedEnabled && seed.trim()) {
         metadata.seed = seed.trim()
       }
@@ -801,63 +1073,133 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
       if (videoFeatureControls.last_frame_image && lastFrameImage) {
         metadata.last_frame_image = lastFrameImage.dataUrl
       }
-      const response = await generateWorkspaceVideo({
-        model: effectiveModel,
-        prompt: prompt.trim(),
-        image:
-          videoFeatureControls.first_frame_image && firstFrameImage
-            ? firstFrameImage.dataUrl
-            : videoFeatureControls.reference_image_upload && referenceImage
-              ? referenceImage.dataUrl
-              : undefined,
-        size: videoFeatureControls.resolution_control ? size : undefined,
-        duration:
-          videoFeatureControls.duration_control && Number.isFinite(durationNumber)
-            ? durationNumber
-            : undefined,
-        metadata,
-      })
-      const taskId =
-        response.task_id ||
-        response.id ||
-        (typeof response.data === 'object' && response.data
-          ? String(
-              (response.data as { task_id?: string; id?: string }).task_id ||
-                (response.data as { id?: string }).id ||
-                ''
-            )
-          : '')
-      if (!taskId) {
-        toast.error(response.message || t('No generation results returned'))
-        return
-      }
       const modelLabel =
         modelOptions.find((item) => item.value === effectiveModel)?.label ||
         effectiveModel
-      setItems((current) => [
-        {
-          id: `${kind}-${Date.now()}-0`,
-          taskId,
-          kind,
-          prompt,
-          model: modelLabel,
-          status: 'queued' as const,
-          size,
-          ratio,
-          quality,
-          duration,
-          frameRate,
-        },
-        ...current,
-      ])
-      toast.success(t('Video task submitted'))
+      const nextItems: GeneratedItem[] = []
+      const errors: string[] = []
+      for (let index = 0; index < submitCount; index += 1) {
+        updateBatchProgress({
+          current: index + 1,
+          message: t('Submitting video task {{current}} of {{total}}', {
+            current: index + 1,
+            total: submitCount,
+          }),
+        })
+        try {
+          const response = await generateWorkspaceVideo({
+            model: effectiveModel,
+            prompt: prompt.trim(),
+            image:
+              videoFeatureControls.first_frame_image && firstFrameImage
+                ? firstFrameImage.dataUrl
+                : videoFeatureControls.reference_image_upload && referenceImage
+                  ? referenceImage.dataUrl
+                  : undefined,
+            size: videoFeatureControls.resolution_control ? size : undefined,
+            duration:
+              videoFeatureControls.duration_control &&
+              Number.isFinite(durationNumber)
+                ? durationNumber
+                : undefined,
+            metadata,
+          })
+          const taskId =
+            response.task_id ||
+            response.id ||
+            (typeof response.data === 'object' && response.data
+              ? String(
+                  (response.data as { task_id?: string; id?: string })
+                    .task_id ||
+                    (response.data as { id?: string }).id ||
+                    ''
+                )
+              : '')
+          if (!taskId) {
+            throw new Error(
+              response.message || t('No generation results returned')
+            )
+          }
+          nextItems.push({
+            id: `${kind}-${Date.now()}-${index}`,
+            taskId,
+            kind,
+            prompt,
+            model: modelLabel,
+            status: 'queued' as const,
+            size,
+            ratio,
+            quality,
+            duration,
+            frameRate,
+          })
+          updateBatchProgress({
+            completed: nextItems.length,
+            message: t('Submitted {{completed}} of {{total}} video tasks', {
+              completed: nextItems.length,
+              total: submitCount,
+            }),
+          })
+        } catch (error) {
+          const message = getErrorMessage(error, t('Video generation failed'))
+          errors.push(message)
+          updateBatchProgress({
+            failed: errors.length,
+            error: message,
+            message: t('Video task {{current}} failed, continuing...', {
+              current: index + 1,
+            }),
+          })
+        }
+      }
+      if (nextItems.length === 0) {
+        const message = errors[0] || t('No generation results returned')
+        updateBatchProgress({
+          status: 'error',
+          message: t('Video task submission failed'),
+          error: message,
+        })
+        toast.error(message)
+        return
+      }
+      setItems((current) => [...nextItems, ...current])
+      await queryClient.invalidateQueries({
+        queryKey: ['workspace-video-generation-history'],
+      })
+      if (errors.length > 0) {
+        updateBatchProgress({
+          status: 'error',
+          completed: nextItems.length,
+          failed: errors.length,
+          message: t('Completed with errors'),
+          error: errors[0],
+        })
+        toast.warning(t('Completed with errors'))
+      } else {
+        updateBatchProgress({
+          status: 'success',
+          completed: nextItems.length,
+          failed: 0,
+          message: t('Video tasks submitted'),
+          error: '',
+        })
+        toast.success(t('Video task submitted'))
+      }
     } catch (error) {
-      toast.error(
-        getErrorMessage(
-          error,
-          kind === 'image' ? t('Image generation failed') : t('Video generation failed')
-        )
+      const message = getErrorMessage(
+        error,
+        kind === 'image'
+          ? t('Image generation failed')
+          : t('Video generation failed')
       )
+      updateBatchProgress({
+        open: true,
+        kind,
+        status: 'error',
+        message: t('Generation failed'),
+        error: message,
+      })
+      toast.error(message)
     } finally {
       setIsGenerating(false)
     }
@@ -865,44 +1207,58 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
 
   return (
     <Main className='h-full overflow-hidden'>
+      <BatchProgressDialog
+        progress={batchProgress}
+        onOpenChange={(open) => {
+          if (!open && batchProgress.status === 'running') return
+          updateBatchProgress({ open })
+        }}
+      />
       <div className='flex h-[calc(100vh-5rem)] min-h-0 flex-col gap-4 lg:flex-row'>
         <div className='min-h-0 overflow-y-auto lg:w-[360px] xl:w-[400px]'>
           <Card className='rounded-lg'>
             <CardHeader>
               <CardTitle>
-                {kind === 'image' ? t('Image generation') : t('Video generation')}
+                {kind === 'image'
+                  ? t('Image generation')
+                  : t('Video generation')}
               </CardTitle>
             </CardHeader>
             <CardContent className='space-y-4'>
-              {isImage && (
-                <Field label={t('Model group')}>
-                  <Select
-                    value={imageCategoryId || '__empty__'}
-                    onValueChange={(value) =>
-                      value && value !== '__empty__' && setImageCategoryId(value)
+              <Field label={t('Model group')}>
+                <Select
+                  value={currentCategoryId || '__empty__'}
+                  onValueChange={(value) => {
+                    if (!value || value === '__empty__') return
+                    if (isImage) {
+                      setImageCategoryId(value)
+                    } else {
+                      setVideoCategoryId(value)
                     }
-                  >
-                    <SelectTrigger className='w-full'>
-                      <SelectValue placeholder={t('Model not found')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {imageModelGroups.length > 0 ? (
-                        imageModelGroups.map((item) => (
-                          <SelectItem key={item.value} value={item.value}>
-                            {item.label}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value='__empty__' disabled>
-                          {t('Model not found')}
+                  }}
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue placeholder={t('Model not found')}>
+                      {selectedGroupLabel || t('Model not found')}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groupOptions.length > 0 ? (
+                      groupOptions.map((item) => (
+                        <SelectItem key={item.value} value={item.value}>
+                          {item.label}
                         </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
+                      ))
+                    ) : (
+                      <SelectItem value='__empty__' disabled>
+                        {t('Model not found')}
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </Field>
 
-              <Field label={isImage ? t('Model channel') : t('Model')}>
+              <Field label={t('Model channel')}>
                 <Select
                   value={effectiveModel || '__empty__'}
                   onValueChange={(value) =>
@@ -910,7 +1266,9 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   }
                 >
                   <SelectTrigger className='w-full'>
-                    <SelectValue placeholder={t('Model not found')} />
+                    <SelectValue placeholder={t('Model not found')}>
+                      {selectedModelLabel || t('Model not found')}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {modelOptions.length > 0 ? (
@@ -996,9 +1354,12 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   duration={duration}
                   frameRate={frameRate}
                   quality={quality}
+                  count={count}
+                  maxBatchSize={videoMaxBatchSize}
                   seedEnabled={seedEnabled}
                   seed={seed}
                   audioEnabled={audioEnabled}
+                  cameraMovement={cameraMovement}
                   referenceImage={referenceImage}
                   firstFrameImage={firstFrameImage}
                   lastFrameImage={lastFrameImage}
@@ -1015,9 +1376,11 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   onDurationChange={setDuration}
                   onFrameRateChange={setFrameRate}
                   onQualityChange={setQuality}
+                  onCountChange={setCount}
                   onSeedEnabledChange={setSeedEnabled}
                   onSeedChange={setSeed}
                   onAudioEnabledChange={setAudioEnabled}
+                  onCameraMovementChange={setCameraMovement}
                   onReferenceImageChange={setReferenceImage}
                   onFirstFrameImageChange={setFirstFrameImage}
                   onLastFrameImageChange={setLastFrameImage}
@@ -1056,8 +1419,8 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
             }}
           />
         </div>
-        {isImage && (
-          <div className='min-h-0 overflow-y-auto lg:w-[320px] xl:w-[360px]'>
+        <div className='min-h-0 overflow-y-auto lg:w-[320px] xl:w-[360px]'>
+          {isImage ? (
             <ImageGenerationHistory
               records={imageHistoryQuery.data || []}
               loading={imageHistoryQuery.isLoading}
@@ -1079,7 +1442,9 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   if (matched) {
                     setImageCategoryId(
                       String(
-                        matched.category_id || matched.category_name || 'default'
+                        matched.category_id ||
+                          matched.category_name ||
+                          'default'
                       )
                     )
                     setModel(matched.model)
@@ -1088,8 +1453,41 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                 toast.info(t('Parameters restored for regeneration'))
               }}
             />
-          </div>
-        )}
+          ) : (
+            <VideoGenerationHistory
+              records={videoHistoryQuery.data || []}
+              loading={videoHistoryQuery.isLoading}
+              onRestore={(record) => {
+                const detail = parseDetail(record.detail)
+                if (detail.prompt || detail.input_text) {
+                  setPrompt(detail.prompt || detail.input_text || '')
+                }
+                if (detail.negative_prompt) {
+                  setNegativePrompt(detail.negative_prompt)
+                }
+                if (record.model) {
+                  const matched = videoModels.find(
+                    (item) =>
+                      item.model === record.model ||
+                      item.model_alias === record.model ||
+                      item.display_name === record.model
+                  )
+                  if (matched) {
+                    setVideoCategoryId(
+                      String(
+                        matched.category_id ||
+                          matched.category_name ||
+                          'default'
+                      )
+                    )
+                    setModel(matched.model)
+                  }
+                }
+                toast.info(t('Parameters restored for regeneration'))
+              }}
+            />
+          )}
+        </div>
       </div>
     </Main>
   )
@@ -1285,6 +1683,192 @@ function ImageHistoryCard(props: {
   )
 }
 
+function BatchProgressDialog(props: {
+  progress: BatchProgressState
+  onOpenChange: (open: boolean) => void
+}) {
+  const { t } = useTranslation()
+  const progress = props.progress
+  const finished = Math.min(
+    progress.total,
+    progress.completed + progress.failed
+  )
+  const percent =
+    progress.total > 0 ? Math.round((finished / progress.total) * 100) : 0
+  const isRunning = progress.status === 'running'
+  const title =
+    progress.kind === 'image'
+      ? t('Image generation progress')
+      : t('Video task submission progress')
+  const summary =
+    progress.kind === 'image'
+      ? t('{{completed}} generated, {{failed}} failed', {
+          completed: progress.completed,
+          failed: progress.failed,
+        })
+      : t('{{completed}} submitted, {{failed}} failed', {
+          completed: progress.completed,
+          failed: progress.failed,
+        })
+
+  return (
+    <Dialog open={progress.open} onOpenChange={props.onOpenChange}>
+      <DialogContent showCloseButton={!isRunning}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
+            {isRunning
+              ? t('Please wait while the batch request is processed.')
+              : progress.status === 'success'
+                ? t('Batch request completed.')
+                : t('Batch request completed with errors.')}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className='space-y-4'>
+          <div className='space-y-2'>
+            <div className='flex items-center justify-between gap-3 text-sm'>
+              <span className='font-medium'>{progress.message}</span>
+              <span className='text-muted-foreground tabular-nums'>
+                {finished}/{progress.total}
+              </span>
+            </div>
+            <Progress value={percent} />
+          </div>
+
+          <div className='grid grid-cols-3 gap-2 text-center text-sm'>
+            <div className='bg-muted/40 rounded-md px-2 py-2'>
+              <div className='text-muted-foreground text-xs'>{t('Total')}</div>
+              <div className='font-medium tabular-nums'>{progress.total}</div>
+            </div>
+            <div className='bg-muted/40 rounded-md px-2 py-2'>
+              <div className='text-muted-foreground text-xs'>
+                {progress.kind === 'image' ? t('Generated') : t('Submitted')}
+              </div>
+              <div className='font-medium tabular-nums'>
+                {progress.completed}
+              </div>
+            </div>
+            <div className='bg-muted/40 rounded-md px-2 py-2'>
+              <div className='text-muted-foreground text-xs'>{t('Failed')}</div>
+              <div className='font-medium tabular-nums'>{progress.failed}</div>
+            </div>
+          </div>
+
+          <div className='text-muted-foreground text-sm'>{summary}</div>
+
+          {progress.error && (
+            <div className='border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm'>
+              {progress.error}
+            </div>
+          )}
+        </div>
+
+        {!isRunning && (
+          <DialogFooter>
+            <Button type='button' onClick={() => props.onOpenChange(false)}>
+              {t('Close')}
+            </Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function VideoGenerationHistory(props: {
+  records: TaskCenterRecord[]
+  loading: boolean
+  onRestore: (record: TaskCenterRecord) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <Card className='rounded-lg'>
+      <CardHeader>
+        <CardTitle className='text-base'>
+          {t('Video generation history')}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className='space-y-3'>
+        {props.loading ? (
+          <div className='text-muted-foreground flex h-32 items-center justify-center gap-2 text-sm'>
+            <Loader2 className='size-4 animate-spin' />
+            {t('Loading...')}
+          </div>
+        ) : props.records.length === 0 ? (
+          <div className='text-muted-foreground flex h-32 items-center justify-center text-center text-sm'>
+            {t('No video generation history')}
+          </div>
+        ) : (
+          props.records.map((record) => (
+            <VideoHistoryCard
+              key={record.id}
+              record={record}
+              onRestore={() => props.onRestore(record)}
+            />
+          ))
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function VideoHistoryCard(props: {
+  record: TaskCenterRecord
+  onRestore: () => void
+}) {
+  const { t } = useTranslation()
+  const detail = parseDetail(props.record.detail)
+  const videoUrl = detail.videos?.[0] || ''
+  const prompt = detail.prompt || detail.input_text || ''
+  return (
+    <div className='border-border overflow-hidden rounded-lg border'>
+      <div className='bg-muted/30 flex aspect-video items-center justify-center overflow-hidden'>
+        {videoUrl ? (
+          <video src={videoUrl} controls className='size-full object-cover' />
+        ) : (
+          <Video className='text-muted-foreground size-8' />
+        )}
+      </div>
+      <div className='space-y-2 p-3'>
+        <div className='line-clamp-2 text-sm font-medium'>{prompt || '-'}</div>
+        <div className='text-muted-foreground space-y-1 text-xs'>
+          <div>{props.record.model || '-'}</div>
+          <div>
+            {t('Status')}: {generationStatusLabel(t, props.record.status)}
+          </div>
+          <div>{formatUnixTime(props.record.submitted_at)}</div>
+        </div>
+        <div className='flex gap-2'>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            className='flex-1'
+            onClick={props.onRestore}
+          >
+            <RefreshCw className='size-4' />
+            {t('Regenerate')}
+          </Button>
+          {prompt && (
+            <Button
+              type='button'
+              variant='outline'
+              size='icon-sm'
+              onClick={() => {
+                navigator.clipboard?.writeText(prompt)
+                toast.success(t('Prompt copied'))
+              }}
+            >
+              <Copy className='size-4' />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function VideoControls(props: {
   zhLanguage: boolean
   featureControls: WorkspaceVideoFeatureControlsDto
@@ -1300,9 +1884,12 @@ function VideoControls(props: {
   duration: string
   frameRate: string
   quality: string
+  count: number
+  maxBatchSize: number
   seedEnabled: boolean
   seed: string
   audioEnabled: boolean
+  cameraMovement: string
   referenceImage: UploadedImage | null
   firstFrameImage: UploadedImage | null
   lastFrameImage: UploadedImage | null
@@ -1312,9 +1899,11 @@ function VideoControls(props: {
   onDurationChange: (value: string) => void
   onFrameRateChange: (value: string) => void
   onQualityChange: (value: string) => void
+  onCountChange: (value: number) => void
   onSeedEnabledChange: (value: boolean) => void
   onSeedChange: (value: string) => void
   onAudioEnabledChange: (value: boolean) => void
+  onCameraMovementChange: (value: string) => void
   onReferenceImageChange: (value: UploadedImage | null) => void
   onFirstFrameImageChange: (value: UploadedImage | null) => void
   onLastFrameImageChange: (value: UploadedImage | null) => void
@@ -1413,7 +2002,31 @@ function VideoControls(props: {
       )}
       {props.featureControls.camera_control && (
         <Field label={t('Camera movement')}>
-          <Input placeholder={t('Static, push in, pan left...')} />
+          <Input
+            value={props.cameraMovement}
+            onChange={(event) =>
+              props.onCameraMovementChange(event.target.value)
+            }
+            placeholder={t('Static, push in, pan left...')}
+          />
+        </Field>
+      )}
+      {props.featureControls.batch_control && (
+        <Field label={t('Generation count')}>
+          <Input
+            type='number'
+            min={1}
+            max={props.maxBatchSize}
+            value={props.count}
+            onChange={(event) =>
+              props.onCountChange(
+                Math.max(
+                  1,
+                  Math.min(props.maxBatchSize, Number(event.target.value))
+                )
+              )
+            }
+          />
         </Field>
       )}
       {props.featureControls.seed_control && <SeedField {...props} />}
@@ -1436,7 +2049,9 @@ function GenerationResults(props: {
       <div className='flex items-center justify-between gap-3'>
         <div>
           <h2 className='text-lg font-medium'>
-            {props.kind === 'image' ? t('Generated images') : t('Generated videos')}
+            {props.kind === 'image'
+              ? t('Generated images')
+              : t('Generated videos')}
           </h2>
         </div>
       </div>
@@ -1550,7 +2165,7 @@ function ResultCard(props: {
               try {
                 const ok = await downloadGeneratedImage(props.item)
                 if (!ok) {
-                  toast.error(t('No downloadable image found'))
+                  toast.error(t('No downloadable content found'))
                 }
               } catch (error) {
                 toast.error(getErrorMessage(error, t('Download failed')))
@@ -1675,7 +2290,10 @@ function UploadField(props: {
         <Button
           type='button'
           variant='outline'
-          className={cn('min-w-0 flex-1 justify-start', props.compact && 'px-2 text-xs')}
+          className={cn(
+            'min-w-0 flex-1 justify-start',
+            props.compact && 'px-2 text-xs'
+          )}
           disabled={isReading}
           onClick={() => inputRef.current?.click()}
         >
@@ -1696,6 +2314,25 @@ function UploadField(props: {
           </Button>
         )}
       </div>
+      {props.value && (
+        <div className='border-border bg-muted/20 overflow-hidden rounded-lg border'>
+          <div
+            className={cn(
+              'flex items-center justify-center overflow-hidden',
+              props.compact ? 'aspect-square' : 'aspect-video'
+            )}
+          >
+            <img
+              src={props.value.dataUrl}
+              alt={props.value.name || props.label}
+              className='size-full object-cover'
+            />
+          </div>
+          <div className='text-muted-foreground truncate px-2 py-1 text-xs'>
+            {props.value.name}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1708,10 +2345,7 @@ function ToggleRow(props: {
   return (
     <label className='flex items-center justify-between rounded-lg border px-3 py-2'>
       <span className='text-sm'>{props.label}</span>
-      <Switch
-        checked={props.checked}
-        onCheckedChange={props.onCheckedChange}
-      />
+      <Switch checked={props.checked} onCheckedChange={props.onCheckedChange} />
     </label>
   )
 }
@@ -1741,10 +2375,7 @@ function SeedField(props: {
   )
 }
 
-function Field(props: {
-  label: string
-  children: React.ReactNode
-}) {
+function Field(props: { label: string; children: React.ReactNode }) {
   return (
     <div className='space-y-2'>
       <Label>{props.label}</Label>

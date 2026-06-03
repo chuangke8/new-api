@@ -56,6 +56,84 @@ export type DeleteLogsResponse = {
   data?: number
 }
 
+export type DataMaintenanceSettings = {
+  auto_cleanup_enabled: boolean
+  cleanup_interval_hours: number
+  image_retention_days: number
+  video_retention_days: number
+  reference_image_retention_days: number
+  chat_message_retention_days: number
+  chat_file_retention_days: number
+  last_cleanup_time: number
+  last_cleanup_summary: string
+}
+
+export type DataMaintenanceCleanupType =
+  | 'image'
+  | 'video'
+  | 'reference_image'
+  | 'chat_messages'
+  | 'chat_files'
+
+export type DataMaintenanceCleanupRequest = {
+  types: DataMaintenanceCleanupType[]
+  start_time?: number
+  end_time?: number
+  before_time?: number
+  dry_run?: boolean
+}
+
+export type DataMaintenanceCleanupResult = {
+  types: DataMaintenanceCleanupType[]
+  start_time: number
+  end_time: number
+  before_time: number
+  dry_run: boolean
+  deleted_files: number
+  deleted_records: number
+  failed_count: number
+  failed_items: string[]
+  started_at: number
+  finished_at: number
+}
+
+export type DataMaintenanceLog = {
+  id: number
+  created_at: number
+  updated_at: number
+  operator_id: number
+  operator_name: string
+  cleanup_types: string
+  start_time: number
+  end_time: number
+  before_time: number
+  dry_run: boolean
+  deleted_files: number
+  deleted_records: number
+  failed_count: number
+  error_detail: string
+  started_at: number
+  finished_at: number
+}
+
+export type DataMaintenanceSettingsResponse = {
+  success: boolean
+  message: string
+  data: DataMaintenanceSettings
+}
+
+export type DataMaintenanceCleanupResponse = {
+  success: boolean
+  message: string
+  data: DataMaintenanceCleanupResult
+}
+
+export type DataMaintenanceLogsResponse = {
+  success: boolean
+  message: string
+  data: DataMaintenanceLog[]
+}
+
 export type SiteSettings = {
   'theme.frontend': string
   Notice: string

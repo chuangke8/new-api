@@ -32,6 +32,7 @@ export interface Message {
   versions: MessageVersion[]
   imageUrls?: string[]
   fileNames?: string[]
+  fileAttachments?: FileAttachment[]
   sources?: { href: string; title: string }[]
   reasoning?: {
     content: string
@@ -51,11 +52,21 @@ export interface ChatCompletionMessage {
 }
 
 export interface ContentPart {
-  type: 'text' | 'image_url'
+  type: 'text' | 'image_url' | 'file'
   text?: string
   image_url?: {
     url: string
   }
+  file?: {
+    filename: string
+    file_data: string
+  }
+}
+
+export interface FileAttachment {
+  filename: string
+  fileData: string
+  mediaType?: string
 }
 
 export interface ChatCompletionRequest {
@@ -174,6 +185,7 @@ export interface WorkspaceChatMessageMetadata {
   key?: string
   imageUrls?: string[]
   fileNames?: string[]
+  fileAttachments?: FileAttachment[]
   status?: MessageStatus
   errorCode?: string | null
   reasoning?: Message['reasoning']

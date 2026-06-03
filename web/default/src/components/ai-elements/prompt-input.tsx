@@ -299,7 +299,10 @@ export function PromptInputAttachment({
         render={
           <div
             className={cn(
-              'group border-border hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 relative flex h-8 cursor-default items-center gap-1.5 rounded-md border px-1.5 text-sm font-medium transition-all select-none',
+              'group border-border hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 relative flex cursor-default rounded-md border text-sm font-medium transition-all select-none',
+              isImage
+                ? 'h-20 w-32 flex-col items-stretch gap-1 p-1.5'
+                : 'h-8 items-center gap-1.5 px-1.5',
               className
             )}
             key={data.id}
@@ -307,15 +310,21 @@ export function PromptInputAttachment({
           />
         }
       >
-        <div className='relative size-5 shrink-0'>
-          <div className='bg-background absolute inset-0 flex size-5 items-center justify-center overflow-hidden rounded transition-opacity group-hover:opacity-0'>
+        <div className={cn('relative shrink-0', isImage ? 'h-12 w-full' : 'size-5')}>
+          <div
+            className={cn(
+              'bg-background absolute inset-0 flex items-center justify-center overflow-hidden rounded transition-opacity',
+              !isImage && 'group-hover:opacity-0',
+              isImage ? 'size-full' : 'size-5'
+            )}
+          >
             {isImage ? (
               <img
                 alt={filename || 'attachment'}
-                className='size-5 object-cover'
-                height={20}
+                className='size-full object-cover'
+                height={48}
                 src={data.url}
-                width={20}
+                width={128}
               />
             ) : (
               <div className='text-muted-foreground flex size-5 items-center justify-center'>
@@ -325,7 +334,12 @@ export function PromptInputAttachment({
           </div>
           <Button
             aria-label={t('Remove attachment')}
-            className='absolute inset-0 size-5 cursor-pointer rounded p-0 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 [&>svg]:size-2.5'
+            className={cn(
+              'absolute cursor-pointer rounded p-0 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100',
+              isImage
+                ? 'top-1 right-1 size-6 bg-background/80 [&>svg]:size-3'
+                : 'inset-0 size-5 [&>svg]:size-2.5'
+            )}
             onClick={(e) => {
               e.stopPropagation()
               attachments.remove(data.id)
@@ -338,7 +352,9 @@ export function PromptInputAttachment({
           </Button>
         </div>
 
-        <span className='flex-1 truncate'>{attachmentLabel}</span>
+        <span className={cn('truncate', isImage ? 'text-xs' : 'flex-1')}>
+          {attachmentLabel}
+        </span>
       </PromptInputHoverCardTrigger>
       <PromptInputHoverCardContent className='w-auto p-2'>
         <div className='w-auto space-y-3'>

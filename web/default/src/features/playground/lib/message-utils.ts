@@ -23,6 +23,7 @@ import type {
   MessageVersion,
   ChatCompletionMessage,
   ContentPart,
+  FileAttachment,
 } from '../types'
 
 /**
@@ -62,7 +63,8 @@ export function updateCurrentVersionContent(
 export function createUserMessage(
   content: string,
   imageUrls: string[] = [],
-  fileNames: string[] = []
+  fileNames: string[] = [],
+  fileAttachments: FileAttachment[] = []
 ): Message {
   return {
     key: nanoid(),
@@ -70,6 +72,7 @@ export function createUserMessage(
     versions: [createMessageVersion(content)],
     imageUrls,
     fileNames,
+    fileAttachments,
   }
 }
 
@@ -94,11 +97,15 @@ export function createLoadingAssistantMessage(): Message {
  */
 export function buildMessageContent(
   text: string,
-  imageUrls: string[] = []
+  imageUrls: string[] = [],
+  fileAttachments: FileAttachment[] = []
 ): string | ContentPart[] {
   const validImages = imageUrls.filter((url) => url.trim() !== '')
+  const validFiles = fileAttachments.filter(
+    (file) => file.filename.trim() && file.fileData.trim()
+  )
 
-  if (validImages.length === 0) {
+  if (validImages.length === 0 && validFiles.length === 0) {
     return text
   }
 
@@ -110,6 +117,13 @@ export function buildMessageContent(
     ...validImages.map((url) => ({
       type: 'image_url' as const,
       image_url: { url: url.trim() },
+    })),
+    ...validFiles.map((file) => ({
+      type: 'file' as const,
+      file: {
+        filename: file.filename.trim(),
+        file_data: file.fileData.trim(),
+      },
     })),
   ]
 
@@ -139,7 +153,11 @@ export function formatMessageForAPI(message: Message): ChatCompletionMessage {
   const currentVersion = getCurrentVersion(message)
   return {
     role: message.from,
-    content: buildMessageContent(currentVersion.content, message.imageUrls),
+    content: buildMessageContent(
+      currentVersion.content,
+      message.imageUrls,
+      message.fileAttachments
+    ),
   }
 }
 
@@ -165,7 +183,8 @@ export function isValidMessage(message: Message): boolean {
     message.from === 'user' &&
     typeof content === 'string' &&
     !content.trim() &&
-    !message.imageUrls?.length
+    !message.imageUrls?.length &&
+    !message.fileAttachments?.length
   )
     return false
 

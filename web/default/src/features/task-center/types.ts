@@ -34,6 +34,10 @@ export type TaskCenterDetailPayload = {
   audios?: string[]
   files?: string[]
   reference_images?: string[]
+  expired_images?: string[]
+  expired_videos?: string[]
+  expired_files?: string[]
+  expired_reference_images?: string[]
   size?: string
   ratio?: string
   style?: string

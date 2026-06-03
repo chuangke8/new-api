@@ -131,6 +131,7 @@ export type WorkspaceVideoFeatureControlsDto = {
   audio_track: boolean
   camera_control: boolean
   seed_control: boolean
+  batch_control: boolean
 }
 
 export type WorkspaceVideoCategoryDto = WorkspaceChatCategoryDto
@@ -142,6 +143,7 @@ export type WorkspaceVideoChannelDto = {
   model_alias: string
   category_id: number
   feature_controls: string | WorkspaceVideoFeatureControlsDto
+  max_batch_size: number
   resolution_presets: string | WorkspaceVideoPresetDto[]
   ratio_presets: string | WorkspaceVideoPresetDto[]
   duration_presets: string | WorkspaceVideoPresetDto[]
@@ -165,6 +167,7 @@ export type WorkspaceVideoModelDto = {
   category_alias: string
   category_display: string
   feature_controls: WorkspaceVideoFeatureControlsDto
+  max_batch_size: number
   resolution_presets: WorkspaceVideoPresetDto[]
   ratio_presets: WorkspaceVideoPresetDto[]
   duration_presets: WorkspaceVideoPresetDto[]

@@ -245,8 +245,25 @@ function DetailBlock({
   )
 }
 
-function MediaPreview({ url, type }: { url: string; type: 'image' | 'video' | 'file' }) {
+function MediaPreview({
+  url,
+  type,
+  expired,
+}: {
+  url: string
+  type: 'image' | 'video' | 'file'
+  expired?: boolean
+}) {
   const { t } = useTranslation()
+  if (expired) {
+    return (
+      <div className='border-border bg-muted/30 flex aspect-video items-center justify-center rounded-lg border'>
+        <div className='text-muted-foreground text-center text-sm'>
+          {t('Resource expired')}
+        </div>
+      </div>
+    )
+  }
   if (type === 'file') {
     return (
       <div className='border-border bg-muted/30 overflow-hidden rounded-lg border'>
@@ -298,15 +315,29 @@ function isImageUrl(url: string) {
   )
 }
 
-function UrlGrid({ urls, type }: { urls?: string[]; type: 'image' | 'video' | 'file' }) {
+function UrlGrid({
+  urls,
+  expiredUrls,
+  type,
+}: {
+  urls?: string[]
+  expiredUrls?: string[]
+  type: 'image' | 'video' | 'file'
+}) {
   const cleanUrls = Array.from(new Set((urls ?? []).filter(Boolean))).filter(
     (url) => type !== 'video' || !isImageUrl(url)
   )
   if (cleanUrls.length === 0) return null
+  const expiredSet = new Set(expiredUrls ?? [])
   return (
     <div className='grid gap-3 sm:grid-cols-2'>
       {cleanUrls.map((url) => (
-        <MediaPreview key={url} url={url} type={type} />
+        <MediaPreview
+          key={url}
+          url={url}
+          type={type}
+          expired={expiredSet.has(url)}
+        />
       ))}
     </div>
   )
@@ -436,13 +467,29 @@ function TaskDetailSheet({
               )}
               <DetailBlock title={t('Generated Content')}>
                 <div className='space-y-3'>
-                  <UrlGrid urls={detail.images} type='image' />
-                  <UrlGrid urls={detail.videos} type='video' />
-                  <UrlGrid urls={[...(detail.audios ?? []), ...(detail.files ?? [])]} type='file' />
+                  <UrlGrid
+                    urls={detail.images}
+                    expiredUrls={detail.expired_images}
+                    type='image'
+                  />
+                  <UrlGrid
+                    urls={detail.videos}
+                    expiredUrls={detail.expired_videos}
+                    type='video'
+                  />
+                  <UrlGrid
+                    urls={[...(detail.audios ?? []), ...(detail.files ?? [])]}
+                    expiredUrls={detail.expired_files}
+                    type='file'
+                  />
                 </div>
               </DetailBlock>
               <DetailBlock title={t('Reference Images')}>
-                <UrlGrid urls={detail.reference_images} type='image' />
+                <UrlGrid
+                  urls={detail.reference_images}
+                  expiredUrls={detail.expired_reference_images}
+                  type='image'
+                />
               </DetailBlock>
               {detailRecord?.error_message && (
                 <DetailBlock title={t('Error Message')}>

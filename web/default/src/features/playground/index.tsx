@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
 import type { FileUIPart } from 'ai'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
   archiveWorkspaceChatSession,
@@ -66,6 +66,7 @@ function mapServerMessage(message: WorkspaceChatMessage): MessageType {
     versions: [createMessageVersion(message.content || '')],
     imageUrls: metadata.imageUrls,
     fileNames: metadata.fileNames,
+    fileAttachments: metadata.fileAttachments,
     sources: metadata.sources,
     reasoning: metadata.reasoning,
     status: metadata.status || 'complete',
@@ -284,6 +285,7 @@ export function Playground() {
           key: message.key,
           imageUrls: message.imageUrls,
           fileNames: message.fileNames,
+          fileAttachments: message.fileAttachments,
           status: message.status,
           errorCode: message.errorCode,
           reasoning: message.reasoning,
@@ -318,12 +320,20 @@ export function Playground() {
     const fileNames = files
       .filter((file) => !file.mediaType?.startsWith('image/'))
       .map((file) => file.filename || t('Attachment'))
+    const fileAttachments = files
+      .filter((file) => !file.mediaType?.startsWith('image/') && file.url)
+      .map((file) => ({
+        filename: file.filename || t('Attachment'),
+        fileData: file.url!,
+        mediaType: file.mediaType,
+      }))
 
-    if (fileNames.length > 0) {
-      toast.info(t('File upload is staged for later backend support.'))
-    }
-
-    const userMessage = createUserMessage(text, imageUrls, fileNames)
+    const userMessage = createUserMessage(
+      text,
+      imageUrls,
+      fileNames,
+      fileAttachments
+    )
     const assistantMessage = createLoadingAssistantMessage()
 
     const newMessages = [...messages, userMessage, assistantMessage]
@@ -336,6 +346,7 @@ export function Playground() {
         key: userMessage.key,
         imageUrls: userMessage.imageUrls,
         fileNames: userMessage.fileNames,
+        fileAttachments: userMessage.fileAttachments,
       },
     })
       .then(() => invalidateSessions())
@@ -432,7 +443,9 @@ export function Playground() {
         onRenameSession={(session, title) =>
           renameSessionMutation.mutate({ id: session.id, title })
         }
-        onArchiveSession={(session) => archiveSessionMutation.mutate(session.id)}
+        onArchiveSession={(session) =>
+          archiveSessionMutation.mutate(session.id)
+        }
         onUnarchiveSession={(session) =>
           unarchiveSessionMutation.mutate(session.id)
         }

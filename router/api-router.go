@@ -218,6 +218,14 @@ func SetApiRouter(router *gin.Engine) {
 			performanceRoute.GET("/logs", controller.GetLogFiles)
 			performanceRoute.DELETE("/logs", controller.CleanupLogFiles)
 		}
+		dataMaintenanceRoute := apiRouter.Group("/data-maintenance")
+		dataMaintenanceRoute.Use(middleware.AdminAuth())
+		{
+			dataMaintenanceRoute.GET("/settings", controller.GetDataMaintenanceSettings)
+			dataMaintenanceRoute.PUT("/settings", controller.SaveDataMaintenanceSettings)
+			dataMaintenanceRoute.POST("/cleanup", controller.RunDataMaintenanceCleanup)
+			dataMaintenanceRoute.GET("/logs", controller.ListDataMaintenanceLogs)
+		}
 		ratioSyncRoute := apiRouter.Group("/ratio_sync")
 		ratioSyncRoute.Use(middleware.RootAuth())
 		{

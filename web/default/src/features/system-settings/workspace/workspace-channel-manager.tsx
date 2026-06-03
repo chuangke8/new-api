@@ -319,24 +319,29 @@ function fromVideoCategoryDto(
 }
 
 function fromVideoChannelDto(channel: WorkspaceVideoChannelDto): WorkspaceChannel {
-  const controls = parseMaybeJson<WorkspaceVideoFeatureControlsDto>(
-    channel.feature_controls,
-    {
-      first_frame_image: true,
-      last_frame_image: true,
-      reference_image_upload: true,
-      duration_control: true,
-      ratio_control: true,
-      resolution_control: true,
-      frame_rate_control: true,
-      style_control: true,
-      quality_control: true,
-      negative_prompt: true,
-      audio_track: true,
-      camera_control: true,
-      seed_control: true,
-    }
-  )
+  const defaultControls: WorkspaceVideoFeatureControlsDto = {
+    first_frame_image: true,
+    last_frame_image: true,
+    reference_image_upload: true,
+    duration_control: true,
+    ratio_control: true,
+    resolution_control: true,
+    frame_rate_control: true,
+    style_control: true,
+    quality_control: true,
+    negative_prompt: true,
+    audio_track: true,
+    camera_control: true,
+    seed_control: true,
+    batch_control: true,
+  }
+  const controls = {
+    ...defaultControls,
+    ...parseMaybeJson<WorkspaceVideoFeatureControlsDto>(
+      channel.feature_controls,
+      defaultControls
+    ),
+  }
   const resolutionPresets = parseMaybeJson<WorkspaceVideoPresetDto[]>(
     channel.resolution_presets,
     []
@@ -373,6 +378,7 @@ function fromVideoChannelDto(channel: WorkspaceVideoChannelDto): WorkspaceChanne
     frameRatePresets: frameRatePresets.map((item) => item.value).filter(Boolean),
     stylePresets: stylePresets.map(fromVideoPresetDto),
     qualityPresets: qualityPresets.map(fromVideoPresetDto),
+    maxBatchSize: channel.max_batch_size || 1,
     capabilities: {
       firstFrame: controls.first_frame_image,
       lastFrame: controls.last_frame_image,
@@ -387,6 +393,7 @@ function fromVideoChannelDto(channel: WorkspaceVideoChannelDto): WorkspaceChanne
       audioTrack: controls.audio_track,
       cameraControl: controls.camera_control,
       seedControl: controls.seed_control,
+      batchControl: controls.batch_control,
     } as WorkspaceChannel['capabilities'],
     disabled: channel.disabled,
     remark: channel.remark,
@@ -471,7 +478,9 @@ function toVideoChannelDto(channel: WorkspaceChannel) {
       audio_track: Boolean(channel.capabilities.audioTrack),
       camera_control: Boolean(channel.capabilities.cameraControl),
       seed_control: Boolean(channel.capabilities.seedControl),
+      batch_control: Boolean(channel.capabilities.batchControl),
     },
+    max_batch_size: Math.max(1, Number(channel.maxBatchSize || 1)),
     resolution_presets: (channel.sizePresets || []).map(stringVideoPresetToDto),
     ratio_presets: (channel.ratioPresets || []).map(stringVideoPresetToDto),
     duration_presets: (channel.durationPresets || []).map(stringVideoPresetToDto),
@@ -1190,7 +1199,7 @@ function WorkspaceChannelsTable(props: {
         size: 140,
       },
       ...presetColumns,
-      ...(props.kind === 'image'
+      ...(props.kind === 'image' || props.kind === 'video'
         ? [
             {
               accessorKey: 'maxBatchSize',
@@ -1679,7 +1688,7 @@ function ChannelDialog(props: {
                 </SelectContent>
               </Select>
             </Field>
-            {kind === 'image' && (
+            {(kind === 'image' || kind === 'video') && (
               <Field label={t('Max generation count')}>
                 <Input
                   type='number'

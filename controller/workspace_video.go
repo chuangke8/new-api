@@ -3,12 +3,14 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -21,6 +23,7 @@ type workspaceVideoChannelRequest struct {
 	ModelAlias        string                              `json:"model_alias"`
 	CategoryId        int                                 `json:"category_id"`
 	FeatureControls   model.WorkspaceVideoFeatureControls `json:"feature_controls"`
+	MaxBatchSize      int                                 `json:"max_batch_size"`
 	ResolutionPresets []model.WorkspaceVideoPreset        `json:"resolution_presets"`
 	RatioPresets      []model.WorkspaceVideoPreset        `json:"ratio_presets"`
 	DurationPresets   []model.WorkspaceVideoPreset        `json:"duration_presets"`
@@ -108,6 +111,7 @@ func workspaceVideoRequestToChannel(req workspaceVideoChannelRequest) model.Work
 		ModelAlias:        req.ModelAlias,
 		CategoryId:        req.CategoryId,
 		FeatureControls:   workspaceVideoFeatureControlsToString(req.FeatureControls),
+		MaxBatchSize:      req.MaxBatchSize,
 		ResolutionPresets: workspaceVideoPresetsToString(req.ResolutionPresets),
 		RatioPresets:      workspaceVideoPresetsToString(req.RatioPresets),
 		DurationPresets:   workspaceVideoPresetsToString(req.DurationPresets),
@@ -217,6 +221,134 @@ func GetWorkspaceVideoModels(c *gin.Context) {
 	common.ApiSuccess(c, models)
 }
 
+func readWorkspaceVideoGenerationRequest(c *gin.Context) (relaycommon.TaskSubmitReq, error) {
+	var request relaycommon.TaskSubmitReq
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return request, err
+	}
+	requestBody, err := storage.Bytes()
+	if err != nil {
+		return request, err
+	}
+	if err := common.Unmarshal(requestBody, &request); err != nil {
+		return request, err
+	}
+	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+		return request, seekErr
+	}
+	c.Request.Body = io.NopCloser(storage)
+	return request, nil
+}
+
+func workspaceVideoMetadataHas(metadata map[string]interface{}, keys ...string) bool {
+	if metadata == nil {
+		return false
+	}
+	for _, key := range keys {
+		value, ok := metadata[key]
+		if !ok || value == nil {
+			continue
+		}
+		if s, ok := value.(string); ok && strings.TrimSpace(s) == "" {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func workspaceVideoMetadataNumber(metadata map[string]interface{}, keys ...string) float64 {
+	if metadata == nil {
+		return 0
+	}
+	for _, key := range keys {
+		value, ok := metadata[key]
+		if !ok || value == nil {
+			continue
+		}
+		switch v := value.(type) {
+		case float64:
+			return v
+		case float32:
+			return float64(v)
+		case int:
+			return float64(v)
+		case int64:
+			return float64(v)
+		case string:
+			var parsed float64
+			if _, err := fmt.Sscanf(strings.TrimSpace(v), "%f", &parsed); err == nil {
+				return parsed
+			}
+		}
+	}
+	return 0
+}
+
+func validateWorkspaceVideoGenerationRequest(request relaycommon.TaskSubmitReq) error {
+	channel, err := model.GetWorkspaceVideoModel(request.Model)
+	if err != nil {
+		return err
+	}
+	controls := channel.FeatureControls
+	metadata := request.Metadata
+
+	if request.Image != "" && !controls.FirstFrameImage && !workspaceVideoMetadataHas(metadata, "reference_image") {
+		return errors.New("selected video channel does not support first frame image")
+	}
+	if !controls.ReferenceImageUpload &&
+		(len(request.Images) > 0 || request.InputReference != "" || workspaceVideoMetadataHas(metadata, "reference_image", "reference_images")) {
+		return errors.New("selected video channel does not support reference image upload")
+	}
+	if !controls.LastFrameImage && workspaceVideoMetadataHas(metadata, "last_frame_image") {
+		return errors.New("selected video channel does not support last frame image")
+	}
+	if !controls.DurationControl && (request.Duration > 0 || strings.TrimSpace(request.Seconds) != "") {
+		return errors.New("selected video channel does not support duration control")
+	}
+	if !controls.RatioControl && workspaceVideoMetadataHas(metadata, "ratio", "aspect_ratio") {
+		return errors.New("selected video channel does not support ratio control")
+	}
+	if !controls.ResolutionControl && (strings.TrimSpace(request.Size) != "" || workspaceVideoMetadataHas(metadata, "resolution")) {
+		return errors.New("selected video channel does not support resolution control")
+	}
+	if !controls.FrameRateControl && workspaceVideoMetadataHas(metadata, "frame_rate", "fps") {
+		return errors.New("selected video channel does not support frame rate control")
+	}
+	if !controls.StyleControl && workspaceVideoMetadataHas(metadata, "style") {
+		return errors.New("selected video channel does not support style control")
+	}
+	if !controls.QualityControl && workspaceVideoMetadataHas(metadata, "quality", "quality_level") {
+		return errors.New("selected video channel does not support quality control")
+	}
+	if !controls.NegativePrompt && workspaceVideoMetadataHas(metadata, "negative_prompt") {
+		return errors.New("selected video channel does not support negative prompt")
+	}
+	if !controls.AudioTrack && workspaceVideoMetadataHas(metadata, "audio", "audio_track") {
+		return errors.New("selected video channel does not support audio track")
+	}
+	if !controls.CameraControl && workspaceVideoMetadataHas(metadata, "camera_control", "camera_movement", "camera") {
+		return errors.New("selected video channel does not support camera control")
+	}
+	if !controls.SeedControl && workspaceVideoMetadataHas(metadata, "seed") {
+		return errors.New("selected video channel does not support seed control")
+	}
+
+	requestedCount := workspaceVideoMetadataNumber(metadata, "n", "count", "batch_size")
+	if !controls.BatchControl && requestedCount > 1 {
+		return errors.New("selected video channel does not support generation count control")
+	}
+	maxBatchSize := channel.MaxBatchSize
+	if maxBatchSize <= 0 {
+		maxBatchSize = 1
+	}
+	if requestedCount > float64(maxBatchSize) {
+		return fmt.Errorf("generation count exceeds channel limit: max %d", maxBatchSize)
+	}
+	return nil
+}
+
 func GenerateWorkspaceVideo(c *gin.Context) {
 	var newAPIError *types.NewAPIError
 	defer func() {
@@ -230,6 +362,16 @@ func GenerateWorkspaceVideo(c *gin.Context) {
 	useAccessToken := c.GetBool("use_access_token")
 	if useAccessToken {
 		newAPIError = types.NewError(errors.New("access token is not supported for workspace video generation"), types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
+		return
+	}
+
+	videoRequest, err := readWorkspaceVideoGenerationRequest(c)
+	if err != nil {
+		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		return
+	}
+	if err := validateWorkspaceVideoGenerationRequest(videoRequest); err != nil {
+		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
 	}
 

@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type {
   ConfirmPaymentComplianceResponse,
+  DataMaintenanceCleanupRequest,
+  DataMaintenanceCleanupResponse,
+  DataMaintenanceLogsResponse,
+  DataMaintenanceSettings,
+  DataMaintenanceSettingsResponse,
   DeleteLogsResponse,
   FetchUpstreamRatiosRequest,
   SystemOptionsResponse,
@@ -50,6 +55,41 @@ export async function deleteLogsBefore(targetTimestamp: number) {
   const res = await api.delete<DeleteLogsResponse>('/api/log/', {
     params: { target_timestamp: targetTimestamp },
   })
+  return res.data
+}
+
+export async function getDataMaintenanceSettings() {
+  const res = await api.get<DataMaintenanceSettingsResponse>(
+    '/api/data-maintenance/settings'
+  )
+  return res.data
+}
+
+export async function updateDataMaintenanceSettings(
+  settings: DataMaintenanceSettings
+) {
+  const res = await api.put<DataMaintenanceSettingsResponse>(
+    '/api/data-maintenance/settings',
+    settings
+  )
+  return res.data
+}
+
+export async function runDataMaintenanceCleanup(
+  request: DataMaintenanceCleanupRequest
+) {
+  const res = await api.post<DataMaintenanceCleanupResponse>(
+    '/api/data-maintenance/cleanup',
+    request
+  )
+  return res.data
+}
+
+export async function getDataMaintenanceLogs(limit = 20) {
+  const res = await api.get<DataMaintenanceLogsResponse>(
+    '/api/data-maintenance/logs',
+    { params: { limit } }
+  )
   return res.data
 }
 

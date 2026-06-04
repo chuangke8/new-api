@@ -28,6 +28,7 @@ import { NoticeSection } from '../maintenance/notice-section'
 import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
 import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { ContactInfoSection } from './contact-info-section'
 
 const SITE_SECTIONS = [
   {
@@ -58,6 +59,22 @@ const SITE_SECTIONS = [
     titleKey: 'System Notice',
     build: (settings: SiteSettings) => (
       <NoticeSection defaultValue={settings.Notice ?? ''} />
+    ),
+  },
+  {
+    id: 'contact-info',
+    titleKey: 'Contact Information',
+    build: (settings: SiteSettings) => (
+      <ContactInfoSection
+        defaultValues={{
+          contact: {
+            wechat_qr_image: settings['contact.wechat_qr_image'],
+            support_qr_image: settings['contact.support_qr_image'],
+            wechat_id: settings['contact.wechat_id'],
+            email: settings['contact.email'],
+          },
+        }}
+      />
     ),
   },
   {

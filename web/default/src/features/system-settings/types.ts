@@ -37,6 +37,15 @@ export type UpdateOptionRequest = {
 export type UpdateOptionResponse = {
   success: boolean
   message: string
+  data?: unknown
+}
+
+export type ContactAssetUploadResponse = {
+  success: boolean
+  message: string
+  data?: {
+    url: string
+  }
 }
 
 export type ConfirmPaymentComplianceResponse = {
@@ -139,6 +148,10 @@ export type SiteSettings = {
   Notice: string
   SystemName: string
   Logo: string
+  'contact.wechat_qr_image': string
+  'contact.support_qr_image': string
+  'contact.wechat_id': string
+  'contact.email': string
   Footer: string
   About: string
   HomePageContent: string

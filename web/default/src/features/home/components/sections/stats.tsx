@@ -27,7 +27,7 @@ interface CounterProps {
   decimals?: number
 }
 
-function Counter(props: CounterProps) {
+export function Counter(props: CounterProps) {
   const { end, suffix = '', prefix = '', duration = 1600, decimals = 0 } = props
   const ref = useRef<HTMLSpanElement>(null)
   const startedRef = useRef(false)

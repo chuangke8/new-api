@@ -18,11 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { CherryStudio } from '@lobehub/icons'
-import { ArrowRight, BookOpen } from 'lucide-react'
+import { Activity, ArrowRight, BookOpen, ImagePlus, Video } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
 import { HeroTerminalDemo } from '../hero-terminal-demo'
+import { Counter } from './stats'
 
 interface HeroProps {
   className?: string
@@ -49,6 +50,12 @@ export function Hero(props: HeroProps) {
   const docsUrl =
     (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
 
+  const metrics = [
+    { end: 30, suffix: '+', label: t('Model Providers') },
+    { end: 99.9, suffix: '%', decimals: 1, label: t('Service Uptime') },
+    { end: 60, suffix: '%', label: t('Max Savings') },
+  ]
+
   const renderDocsButton = () => {
     const isExternal = docsUrl.startsWith('http')
     if (isExternal) {
@@ -61,7 +68,7 @@ export function Hero(props: HeroProps) {
           }
         >
           <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
-          <span>{t('Docs')}</span>
+          <span>{t('Developer Docs')}</span>
         </Button>
       )
     }
@@ -72,7 +79,7 @@ export function Hero(props: HeroProps) {
         render={<Link to={docsUrl} />}
       >
         <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
-        <span>{t('Docs')}</span>
+        <span>{t('Developer Docs')}</span>
       </Button>
     )
   }
@@ -109,25 +116,28 @@ export function Hero(props: HeroProps) {
               <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75' />
               <span className='relative inline-flex size-1.5 rounded-full bg-blue-500 dark:bg-blue-400' />
             </span>
-            <span>{t('AI Application Infrastructure Foundation')}</span>
+            <Activity className='size-3' />
+            <span>{t('AI API Gateway Service')}</span>
           </div>
 
           <h1
             className='landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.25rem)] leading-[1.15] font-bold tracking-tight'
             style={{ animationDelay: '60ms' }}
           >
-            {t('Unified API Gateway for')}
+            {t('One endpoint to orchestrate')}
             <br />
             <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-              {t('Vast Range of AI Models')}
+              {t("the world's most advanced")}
             </span>
+            <br />
+            {t('AI models')}
           </h1>
           <p
             className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-xl text-base leading-relaxed opacity-0 md:text-[15px]'
             style={{ animationDelay: '120ms' }}
           >
             {t(
-              'Access a vast selection of models via a standard, unified API protocol. Power AI applications, manage digital assets, and connect the Future.'
+              'Better pricing, better stability. Just swap your model base URL for your dedicated gateway address to connect OpenAI, Claude, Gemini, DeepSeek and other leading models.'
             )}
           </p>
 
@@ -144,6 +154,22 @@ export function Hero(props: HeroProps) {
                   {t('Go to Dashboard')}
                   <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
                 </Button>
+                <Button
+                  variant='outline'
+                  className='group h-11 rounded-lg border-violet-500/30 bg-violet-500/5 px-5 text-sm font-medium text-violet-600 hover:border-violet-500/50 hover:bg-violet-500/10 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-400'
+                  render={<Link to='/workspace/image' />}
+                >
+                  <ImagePlus className='size-4' />
+                  {t('Image Generation')}
+                </Button>
+                <Button
+                  variant='outline'
+                  className='group h-11 rounded-lg border-sky-500/30 bg-sky-500/5 px-5 text-sm font-medium text-sky-600 hover:border-sky-500/50 hover:bg-sky-500/10 hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-400'
+                  render={<Link to='/workspace/video' />}
+                >
+                  <Video className='size-4' />
+                  {t('Video Generation')}
+                </Button>
                 {renderDocsButton()}
               </>
             ) : (
@@ -157,14 +183,44 @@ export function Hero(props: HeroProps) {
                 </Button>
                 <Button
                   variant='outline'
-                  className='border-border/50 hover:border-border hover:bg-muted/50 h-11 rounded-lg px-5 text-sm font-medium'
-                  render={<Link to='/pricing' />}
+                  className='group h-11 rounded-lg border-violet-500/30 bg-violet-500/5 px-5 text-sm font-medium text-violet-600 hover:border-violet-500/50 hover:bg-violet-500/10 hover:text-violet-600 dark:text-violet-400 dark:hover:text-violet-400'
+                  render={<Link to='/workspace/image' />}
                 >
-                  {t('View Pricing')}
+                  <ImagePlus className='size-4' />
+                  {t('Image Generation')}
+                </Button>
+                <Button
+                  variant='outline'
+                  className='group h-11 rounded-lg border-sky-500/30 bg-sky-500/5 px-5 text-sm font-medium text-sky-600 hover:border-sky-500/50 hover:bg-sky-500/10 hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-400'
+                  render={<Link to='/workspace/video' />}
+                >
+                  <Video className='size-4' />
+                  {t('Video Generation')}
                 </Button>
                 {renderDocsButton()}
               </>
             )}
+          </div>
+
+          {/* Hero metrics — animated counters */}
+          <div
+            className='landing-animate-fade-up mt-10 flex flex-wrap gap-x-12 gap-y-6 opacity-0'
+            style={{ animationDelay: '210ms' }}
+          >
+            {metrics.map((m) => (
+              <div key={m.label} className='flex flex-col'>
+                <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl'>
+                  <Counter
+                    end={m.end}
+                    suffix={m.suffix}
+                    decimals={m.decimals}
+                  />
+                </span>
+                <span className='text-muted-foreground mt-1 text-xs'>
+                  {m.label}
+                </span>
+              </div>
+            ))}
           </div>
 
           {/* Supported Apps (参考图二样式，进行卡片化和信息扩充设计，增加视觉高度) */}

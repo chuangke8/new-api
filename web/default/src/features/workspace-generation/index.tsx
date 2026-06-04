@@ -923,7 +923,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         openBatchProgress(
           'image',
           submitCount,
-          t('Preparing image generation...')
+          t('Preparing image task submission...')
         )
         const payload = {
           model: effectiveModel,
@@ -946,11 +946,12 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
           response_format: 'url' as const,
         }
         const resultData = []
+        let submittedCount = 0
         const errors: string[] = []
         for (let index = 0; index < submitCount; index += 1) {
           updateBatchProgress({
             current: index + 1,
-            message: t('Generating image {{current}} of {{total}}', {
+            message: t('Submitting image request {{current}} of {{total}}', {
               current: index + 1,
               total: submitCount,
             }),
@@ -958,14 +959,14 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
           try {
             const response = await generateWorkspaceImage(payload)
             const data = Array.isArray(response.data) ? response.data : []
-            if (data.length === 0) {
-              throw new Error(t('No generation results returned'))
+            submittedCount += 1
+            if (data.length > 0) {
+              resultData.push(...data)
             }
-            resultData.push(...data)
             updateBatchProgress({
-              completed: index + 1 - errors.length,
-              message: t('Generated {{completed}} of {{total}} images', {
-                completed: index + 1 - errors.length,
+              completed: submittedCount,
+              message: t('Submitted {{completed}} of {{total}} image requests', {
+                completed: submittedCount,
                 total: submitCount,
               }),
             })
@@ -975,13 +976,13 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
             updateBatchProgress({
               failed: errors.length,
               error: message,
-              message: t('Image {{current}} failed, continuing...', {
+              message: t('Image request {{current}} failed, continuing...', {
                 current: index + 1,
               }),
             })
           }
         }
-        if (resultData.length === 0) {
+        if (submittedCount === 0) {
           const message = errors[0] || t('No generation results returned')
           updateBatchProgress({
             status: 'error',
@@ -991,30 +992,32 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
           toast.error(message)
           return
         }
-        const modelLabel =
-          modelOptions.find((item) => item.value === effectiveModel)?.label ||
-          effectiveModel
-        const nextItems = resultData.map((item, index) => ({
-          id: `${kind}-${Date.now()}-${index}`,
-          kind,
-          prompt,
-          revisedPrompt: item.revised_prompt,
-          model: modelLabel,
-          status: 'ready' as const,
-          imageUrl: item.url,
-          b64Json: item.b64_json,
-          size,
-          ratio,
-          quality,
-        }))
-        setItems((current) => [...nextItems, ...current])
+        if (resultData.length > 0) {
+          const modelLabel =
+            modelOptions.find((item) => item.value === effectiveModel)?.label ||
+            effectiveModel
+          const nextItems = resultData.map((item, index) => ({
+            id: `${kind}-${Date.now()}-${index}`,
+            kind,
+            prompt,
+            revisedPrompt: item.revised_prompt,
+            model: modelLabel,
+            status: 'ready' as const,
+            imageUrl: item.url,
+            b64Json: item.b64_json,
+            size,
+            ratio,
+            quality,
+          }))
+          setItems((current) => [...nextItems, ...current])
+        }
         await queryClient.invalidateQueries({
           queryKey: ['workspace-image-generation-history'],
         })
         if (errors.length > 0) {
           updateBatchProgress({
             status: 'error',
-            completed: resultData.length,
+            completed: submittedCount,
             failed: errors.length,
             message: t('Completed with errors'),
             error: errors[0],
@@ -1023,12 +1026,12 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         } else {
           updateBatchProgress({
             status: 'success',
-            completed: resultData.length,
+            completed: submittedCount,
             failed: 0,
-            message: t('Image batch completed'),
+            message: t('Image requests submitted'),
             error: '',
           })
-          toast.success(t('Image generated'))
+          toast.success(t('Image requests submitted'))
         }
         return
       }
@@ -1698,11 +1701,11 @@ function BatchProgressDialog(props: {
   const isRunning = progress.status === 'running'
   const title =
     progress.kind === 'image'
-      ? t('Image generation progress')
+      ? t('Image task submission progress')
       : t('Video task submission progress')
   const summary =
     progress.kind === 'image'
-      ? t('{{completed}} generated, {{failed}} failed', {
+      ? t('{{completed}} submitted, {{failed}} failed', {
           completed: progress.completed,
           failed: progress.failed,
         })
@@ -1743,7 +1746,7 @@ function BatchProgressDialog(props: {
             </div>
             <div className='bg-muted/40 rounded-md px-2 py-2'>
               <div className='text-muted-foreground text-xs'>
-                {progress.kind === 'image' ? t('Generated') : t('Submitted')}
+                {t('Submitted')}
               </div>
               <div className='font-medium tabular-nums'>
                 {progress.completed}

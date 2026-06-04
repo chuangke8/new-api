@@ -41,10 +41,18 @@ export interface CurrencyConfig {
   customCurrencyExchangeRate: number
 }
 
+export interface ContactConfig {
+  wechatQrImage?: string
+  supportQrImage?: string
+  wechatId?: string
+  email?: string
+}
+
 export interface SystemConfig {
   systemName: string
   logo: string
   footerHtml?: string
+  contact?: ContactConfig
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
   currency: CurrencyConfig
@@ -92,6 +100,10 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             currency: {
               ...state.config.currency,
               ...(newConfig.currency ?? {}),
+            },
+            contact: {
+              ...(state.config.contact ?? {}),
+              ...(newConfig.contact ?? {}),
             },
             themeDefaults: {
               ...state.config.themeDefaults,

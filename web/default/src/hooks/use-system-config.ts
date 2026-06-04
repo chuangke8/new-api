@@ -53,6 +53,12 @@ interface StatusApiResponse {
     system_name?: string
     logo?: string
     footer_html?: string
+    contact?: {
+      wechat_qr_image?: string
+      support_qr_image?: string
+      wechat_id?: string
+      email?: string
+    }
     demo_site_enabled?: boolean
     display_token_stat_enabled?: boolean
     display_in_currency?: boolean
@@ -173,6 +179,12 @@ export function mapStatusDataToConfig(
     systemName: data.system_name || DEFAULT_SYSTEM_NAME,
     logo: data.logo || DEFAULT_LOGO,
     footerHtml: data.footer_html,
+    contact: {
+      wechatQrImage: data.contact?.wechat_qr_image,
+      supportQrImage: data.contact?.support_qr_image,
+      wechatId: data.contact?.wechat_id,
+      email: data.contact?.email,
+    },
     demoSiteEnabled: data.demo_site_enabled,
     displayTokenStatEnabled: data.display_token_stat_enabled,
     currency,

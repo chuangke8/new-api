@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type {
   ConfirmPaymentComplianceResponse,
+  ContactAssetUploadResponse,
   DataMaintenanceCleanupRequest,
   DataMaintenanceCleanupResponse,
   DataMaintenanceLogsResponse,
@@ -40,6 +41,22 @@ export async function getSystemOptions() {
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
   const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  return res.data
+}
+
+export async function uploadContactAsset(field: string, file: File) {
+  const formData = new FormData()
+  formData.append('field', field)
+  formData.append('file', file)
+  const res = await api.post<ContactAssetUploadResponse>(
+    '/api/option/contact-assets',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  )
   return res.data
 }
 

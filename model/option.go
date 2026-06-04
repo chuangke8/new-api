@@ -71,6 +71,10 @@ func InitOptionMap() {
 	common.OptionMap["Footer"] = common.Footer
 	common.OptionMap["SystemName"] = common.SystemName
 	common.OptionMap["Logo"] = common.Logo
+	common.OptionMap["contact.wechat_qr_image"] = ""
+	common.OptionMap["contact.support_qr_image"] = ""
+	common.OptionMap["contact.wechat_id"] = ""
+	common.OptionMap["contact.email"] = ""
 	common.OptionMap["ServerAddress"] = ""
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
 	common.OptionMap["WorkerValidKey"] = system_setting.WorkerValidKey

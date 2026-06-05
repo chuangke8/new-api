@@ -129,6 +129,7 @@ const rootElement = document.getElementById('root')!
       const saved = localStorage.getItem('status')
       if (saved) {
         const s = JSON.parse(saved)
+        queryClient.setQueryData(['status'], s)
         if (s?.system_name) apply(s.system_name)
         if (s?.logo) applyFaviconToDom(s.logo)
       }
@@ -138,6 +139,7 @@ const rootElement = document.getElementById('root')!
     // Background refresh
     getStatus()
       .then((s) => {
+        queryClient.setQueryData(['status'], s)
         if (s?.system_name) {
           apply(s.system_name as string)
           try {

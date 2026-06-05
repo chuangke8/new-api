@@ -38,8 +38,9 @@ export function useHomePageContent(): HomePageContentResult {
     const loadContent = async () => {
       // Load from localStorage first for immediate display
       const cached = localStorage.getItem(STORAGE_KEY)
-      if (cached && mounted) {
+      if (cached !== null && mounted) {
         setContent(cached)
+        setIsLoaded(true)
       }
 
       try {
@@ -52,9 +53,9 @@ export function useHomePageContent(): HomePageContentResult {
           setContent(data)
           localStorage.setItem(STORAGE_KEY, data)
         } else {
-          // Clear content if API returns empty
+          // Remember empty content so the default homepage is not blocked on every visit.
           setContent('')
-          localStorage.removeItem(STORAGE_KEY)
+          localStorage.setItem(STORAGE_KEY, '')
         }
       } catch (error) {
         if (!mounted) return

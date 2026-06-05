@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const defaultWorkspaceChatCategoryName = "general"
@@ -76,27 +77,31 @@ type WorkspaceChatMessage struct {
 }
 
 func EnsureDefaultWorkspaceChatCategory() (*WorkspaceChatCategory, error) {
-	var count int64
-	if err := DB.Model(&WorkspaceChatCategory{}).Count(&count).Error; err != nil {
-		return nil, err
-	}
-	if count == 0 {
-		now := common.GetTimestamp()
-		category := WorkspaceChatCategory{
-			Weight:      100,
-			Name:        defaultWorkspaceChatCategoryName,
-			Alias:       defaultWorkspaceChatCategoryAlias,
-			Disabled:    false,
-			CreatedTime: now,
-			UpdatedTime: now,
-		}
-		if err := DB.Create(&category).Error; err != nil {
-			return nil, err
-		}
+	var category WorkspaceChatCategory
+	err := DB.Where("name = ?", defaultWorkspaceChatCategoryName).First(&category).Error
+	if err == nil {
 		return &category, nil
 	}
-	var category WorkspaceChatCategory
-	if err := DB.Order("weight DESC").Order("id ASC").First(&category).Error; err != nil {
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	now := common.GetTimestamp()
+	category = WorkspaceChatCategory{
+		Weight:      100,
+		Name:        defaultWorkspaceChatCategoryName,
+		Alias:       defaultWorkspaceChatCategoryAlias,
+		Disabled:    false,
+		CreatedTime: now,
+		UpdatedTime: now,
+	}
+	if err := DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&category).Error; err != nil {
+		return nil, err
+	}
+	if category.Id != 0 {
+		return &category, nil
+	}
+	if err := DB.Where("name = ?", defaultWorkspaceChatCategoryName).First(&category).Error; err != nil {
 		return nil, err
 	}
 	return &category, nil

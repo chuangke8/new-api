@@ -1,0 +1,7 @@
+interface:
+  display_name: "new-api Project Standards"
+  short_description: "Use the repository workflow, coding, i18n, database, git, and validation standards."
+  default_prompt: "Use $new-api-project-standards to plan and implement this new-api project task safely."
+
+policy:
+  allow_implicit_invocation: true

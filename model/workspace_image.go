@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const defaultWorkspaceImageCategoryName = "general"
@@ -138,27 +140,31 @@ func workspaceImageFeatureControlsFromString(value string) WorkspaceImageFeature
 }
 
 func EnsureDefaultWorkspaceImageCategory() (*WorkspaceImageCategory, error) {
-	var count int64
-	if err := DB.Model(&WorkspaceImageCategory{}).Count(&count).Error; err != nil {
-		return nil, err
-	}
-	if count == 0 {
-		now := common.GetTimestamp()
-		category := WorkspaceImageCategory{
-			Weight:      100,
-			Name:        defaultWorkspaceImageCategoryName,
-			Alias:       defaultWorkspaceImageCategoryAlias,
-			Disabled:    false,
-			CreatedTime: now,
-			UpdatedTime: now,
-		}
-		if err := DB.Create(&category).Error; err != nil {
-			return nil, err
-		}
+	var category WorkspaceImageCategory
+	err := DB.Where("name = ?", defaultWorkspaceImageCategoryName).First(&category).Error
+	if err == nil {
 		return &category, nil
 	}
-	var category WorkspaceImageCategory
-	if err := DB.Order("weight DESC").Order("id ASC").First(&category).Error; err != nil {
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	now := common.GetTimestamp()
+	category = WorkspaceImageCategory{
+		Weight:      100,
+		Name:        defaultWorkspaceImageCategoryName,
+		Alias:       defaultWorkspaceImageCategoryAlias,
+		Disabled:    false,
+		CreatedTime: now,
+		UpdatedTime: now,
+	}
+	if err := DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&category).Error; err != nil {
+		return nil, err
+	}
+	if category.Id != 0 {
+		return &category, nil
+	}
+	if err := DB.Where("name = ?", defaultWorkspaceImageCategoryName).First(&category).Error; err != nil {
 		return nil, err
 	}
 	return &category, nil

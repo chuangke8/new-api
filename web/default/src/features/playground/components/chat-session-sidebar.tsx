@@ -54,6 +54,7 @@ type ChatSessionSidebarProps = {
   onArchiveSession: (session: WorkspaceChatSession) => void
   onUnarchiveSession: (session: WorkspaceChatSession) => void
   onDeleteSession: (session: WorkspaceChatSession) => void
+  className?: string
 }
 
 export function ChatSessionSidebar({
@@ -70,6 +71,7 @@ export function ChatSessionSidebar({
   onArchiveSession,
   onUnarchiveSession,
   onDeleteSession,
+  className,
 }: ChatSessionSidebarProps) {
   const { t } = useTranslation()
   const [renamingId, setRenamingId] = useState<number | null>(null)
@@ -92,8 +94,12 @@ export function ChatSessionSidebar({
   return (
     <aside
       className={cn(
-        'bg-background/95 border-border flex h-full shrink-0 flex-col border-r transition-all duration-200',
-        collapsed ? 'w-12' : 'w-72'
+        'bg-background/95 border-border flex h-dvh shrink-0 flex-col border-r shadow-xl transition-all duration-200 md:h-full md:shadow-none',
+        'fixed inset-y-0 left-0 z-30 md:relative md:inset-auto md:z-auto',
+        collapsed
+          ? 'w-[min(82vw,18rem)] -translate-x-full md:w-12 md:translate-x-0'
+          : 'w-[min(82vw,18rem)] translate-x-0 md:w-72',
+        className
       )}
     >
       <div className='flex items-center gap-2 border-b p-2'>

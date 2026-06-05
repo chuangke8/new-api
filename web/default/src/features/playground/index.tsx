@@ -19,8 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FileUIPart } from 'ai'
+import { Menu, MessageSquarePlus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { Button } from '@/components/ui/button'
 import {
   archiveWorkspaceChatSession,
   createWorkspaceChatMessage,
@@ -94,6 +97,7 @@ function isPersistableMessage(message: MessageType) {
 export function Playground() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const isMobile = useIsMobile()
   const {
     config,
     parameterEnabled,
@@ -118,9 +122,12 @@ export function Playground() {
   )
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
   const [showArchivedSessions, setShowArchivedSessions] = useState(false)
-  const [sessionsCollapsed, setSessionsCollapsed] = useState(false)
+  const [sessionsCollapsed, setSessionsCollapsed] = useState(() =>
+    typeof window === 'undefined' ? false : window.innerWidth < 768
+  )
   const persistedMessageKeysRef = useRef(new Set<string>())
   const loadingSessionRef = useRef(false)
+  const appliedMobileDefaultRef = useRef(false)
 
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
@@ -192,6 +199,16 @@ export function Playground() {
     },
   })
 
+  const startNewSession = useCallback(() => {
+    persistedMessageKeysRef.current.clear()
+    setActiveSessionId(null)
+    updateMessages([])
+    createSessionMutation.mutate({
+      title: t('New chat'),
+      model: config.model,
+    })
+  }, [config.model, createSessionMutation, t, updateMessages])
+
   // Load groups
   const { data: groupsData } = useQuery({
     queryKey: ['playground-groups'],
@@ -233,6 +250,7 @@ export function Playground() {
     async (session: WorkspaceChatSession) => {
       loadingSessionRef.current = true
       setActiveSessionId(session.id)
+      if (isMobile) setSessionsCollapsed(true)
       updateConfig('model', session.model || config.model)
       try {
         const res = await getWorkspaceChatMessages(session.id)
@@ -251,7 +269,7 @@ export function Playground() {
         loadingSessionRef.current = false
       }
     },
-    [config.model, t, updateConfig, updateMessages]
+    [config.model, isMobile, t, updateConfig, updateMessages]
   )
 
   const ensureActiveSession = useCallback(async () => {
@@ -311,6 +329,12 @@ export function Playground() {
       updateConfig('group', fallback)
     }
   }, [groupsData, setGroups, config.group, updateConfig])
+
+  useEffect(() => {
+    if (!isMobile || appliedMobileDefaultRef.current) return
+    setSessionsCollapsed(true)
+    appliedMobileDefaultRef.current = true
+  }, [isMobile])
 
   const handleSendMessage = async (text: string, files: FileUIPart[] = []) => {
     const sessionId = await ensureActiveSession()
@@ -422,6 +446,14 @@ export function Playground() {
 
   return (
     <div className='relative flex size-full overflow-hidden'>
+      {!sessionsCollapsed && (
+        <button
+          type='button'
+          aria-label={t('Collapse sessions')}
+          className='fixed inset-0 z-20 bg-background/60 backdrop-blur-sm md:hidden'
+          onClick={() => setSessionsCollapsed(true)}
+        />
+      )}
       <ChatSessionSidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
@@ -430,15 +462,7 @@ export function Playground() {
         isLoading={isLoadingSessions}
         onArchivedChange={setShowArchivedSessions}
         onCollapsedChange={setSessionsCollapsed}
-        onNewSession={() => {
-          persistedMessageKeysRef.current.clear()
-          setActiveSessionId(null)
-          updateMessages([])
-          createSessionMutation.mutate({
-            title: t('New chat'),
-            model: config.model,
-          })
-        }}
+        onNewSession={startNewSession}
         onSelectSession={loadSessionMessages}
         onRenameSession={(session, title) =>
           renameSessionMutation.mutate({ id: session.id, title })
@@ -452,6 +476,28 @@ export function Playground() {
         onDeleteSession={(session) => deleteSessionMutation.mutate(session.id)}
       />
       <div className='relative flex min-w-0 flex-1 flex-col overflow-hidden'>
+        <div className='bg-background/95 border-border flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2 md:hidden'>
+          <Button
+            variant='ghost'
+            size='icon-sm'
+            aria-label={t('Expand sessions')}
+            onClick={() => setSessionsCollapsed(false)}
+          >
+            <Menu />
+          </Button>
+          <div className='min-w-0 flex-1 truncate text-center text-sm font-medium'>
+            {sessions.find((session) => session.id === activeSessionId)
+              ?.title || t('New chat')}
+          </div>
+          <Button
+            variant='ghost'
+            size='icon-sm'
+            aria-label={t('New chat')}
+            onClick={startNewSession}
+          >
+            <MessageSquarePlus />
+          </Button>
+        </div>
         {/* Full-width scroll container: scrolling works even over side whitespace */}
         <div className='flex flex-1 flex-col overflow-hidden'>
           <PlaygroundChat
@@ -469,7 +515,7 @@ export function Playground() {
         </div>
 
         {/* Input area: center content and constrain to the same container width */}
-        <div className='mx-auto w-full max-w-4xl'>
+        <div className='mx-auto w-full max-w-4xl px-2 pb-2 md:px-0 md:pb-0'>
           <PlaygroundInput
             disabled={isGenerating}
             groups={groups}

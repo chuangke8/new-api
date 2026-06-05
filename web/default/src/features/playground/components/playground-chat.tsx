@@ -105,7 +105,7 @@ export function PlaygroundChat({
     <Conversation>
       {/* Remove outer padding; apply padding to inner centered container to align with input */}
       <ConversationContent className='p-0'>
-        <div className='mx-auto w-full max-w-4xl px-4 py-4'>
+        <div className='mx-auto w-full max-w-4xl px-3 py-3 sm:px-4 sm:py-4'>
           {messages.map((message, messageIndex) => {
             const { versions = [] } = message
             const isLastAssistantMessage =
@@ -120,7 +120,7 @@ export function PlaygroundChat({
                       from={message.from}
                       key={`${message.key}-${version.id}-${versionIndex}`}
                     >
-                      <div className='w-full min-w-0 flex-1 basis-full py-1'>
+                      <div className='w-full min-w-0 flex-1 basis-full overflow-hidden py-1'>
                         {isEditing(message.key) ? (
                           <div className='space-y-2'>
                             <Textarea
@@ -129,7 +129,7 @@ export function PlaygroundChat({
                               className='font-mono text-sm'
                               rows={8}
                             />
-                            <div className='flex gap-2'>
+                            <div className='flex flex-wrap gap-2'>
                               {/* Save & Submit only makes sense for user messages */}
                               {message.from === MESSAGE_ROLES.USER && (
                                 <Button
@@ -253,14 +253,14 @@ export function PlaygroundChat({
                                     showMessageContent && (
                                       <>
                                         {message.imageUrls?.length ? (
-                                          <div className='mb-2 flex flex-wrap gap-2'>
+                                          <div className='mb-2 flex max-w-full flex-wrap gap-2'>
                                             {message.imageUrls.map(
                                               (imageUrl, imageIndex) => (
                                                 <img
                                                   alt={t('Uploaded image {{index}}', {
                                                     index: imageIndex + 1,
                                                   })}
-                                                  className='border-border max-h-40 rounded-md border object-contain'
+                                                  className='border-border max-h-40 max-w-full rounded-md border object-contain'
                                                   key={`${message.key}-image-${imageIndex}`}
                                                   src={imageUrl}
                                                 />

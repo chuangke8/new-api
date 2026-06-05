@@ -107,7 +107,7 @@ export function PlaygroundInput({
   }
 
   return (
-    <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
+    <div className='grid min-w-0 shrink-0 gap-3 px-0 pb-2 md:gap-4 md:px-1 md:pb-4'>
       <PromptInput
         groupClassName='rounded-xl'
         maxFiles={8}
@@ -115,7 +115,7 @@ export function PlaygroundInput({
         onError={(error) => toast.error(error.message)}
         onSubmit={handleSubmit}
       >
-        <div className='flex flex-wrap gap-2 px-3 pt-3'>
+        <div className='flex max-w-full flex-wrap gap-2 px-3 pt-3'>
           <PromptInputAttachments>
             {(attachment) => <PromptInputAttachment data={attachment} />}
           </PromptInputAttachments>
@@ -125,20 +125,20 @@ export function PlaygroundInput({
           autoCorrect='off'
           autoCapitalize='off'
           spellCheck={false}
-          className='px-5 md:text-base'
+          className='px-4 text-sm md:px-5 md:text-base'
           disabled={disabled}
           onChange={(event) => setText(event.target.value)}
           placeholder={t('Ask anything')}
           value={text}
         />
 
-        <PromptInputFooter className='p-2.5'>
+        <PromptInputFooter className='flex-wrap items-center p-2 max-sm:gap-2 md:p-2.5'>
           <WorkbenchInputTools
             disabled={disabled}
             capabilities={capabilities}
           />
 
-          <div className='flex items-center gap-1.5 md:gap-2'>
+          <div className='ml-auto flex min-w-0 items-center gap-1.5 md:gap-2'>
             <ModelGroupSelector
               selectedModel={modelValue}
               models={models}
@@ -159,7 +159,7 @@ export function PlaygroundInput({
         </PromptInputFooter>
       </PromptInput>
 
-      <Suggestions>
+      <Suggestions className='px-1'>
         {suggestions.map(({ icon: Icon, textKey, color }) => {
           const text = t(textKey)
           return (
@@ -207,7 +207,7 @@ function WorkbenchInputTools({
   const showSearch = capabilities?.webSearchEnabled ?? true
 
   return (
-    <PromptInputTools>
+    <PromptInputTools className='min-w-0 flex-1 flex-wrap'>
       <input
         accept='image/*'
         className='hidden'
@@ -231,7 +231,7 @@ function WorkbenchInputTools({
       />
       {showImage && (
         <PromptInputButton
-          className='border font-medium'
+          className='border font-medium max-sm:px-2'
           disabled={disabled}
           onClick={() => imageInputRef.current?.click()}
           variant='outline'
@@ -242,7 +242,7 @@ function WorkbenchInputTools({
       )}
       {showFile && (
         <PromptInputButton
-          className='border font-medium'
+          className='border font-medium max-sm:px-2'
           disabled={disabled}
           onClick={() => fileInputRef.current?.click()}
           variant='outline'
@@ -253,7 +253,7 @@ function WorkbenchInputTools({
       )}
       {showSearch && (
         <PromptInputButton
-          className='border font-medium'
+          className='border font-medium max-sm:px-2'
           disabled={disabled}
           onClick={() => toast.info(t('Search feature in development'))}
           variant='outline'

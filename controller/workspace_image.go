@@ -325,6 +325,15 @@ func workspaceImageRawField(raw map[string]any, field string) (any, bool) {
 	return value, true
 }
 
+func workspaceImageFirstRawField(raw map[string]any, fields ...string) (any, bool) {
+	for _, field := range fields {
+		if value, ok := workspaceImageRawField(raw, field); ok {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
 func applyWorkspaceImageMappedFields(c *gin.Context, request *dto.ImageRequest, rawRequest string, channel *model.WorkspaceImageModel) {
 	if request == nil || channel == nil || strings.TrimSpace(rawRequest) == "" {
 		return
@@ -336,15 +345,16 @@ func applyWorkspaceImageMappedFields(c *gin.Context, request *dto.ImageRequest, 
 	controls := channel.FeatureControls
 	mappings := model.NormalizeWorkspaceImageFieldMappings(channel.FieldMappings)
 	extra := make(map[string]any)
-	addMapped := func(enabled bool, sourceField string, fallbackValue any) {
+	addMapped := func(enabled bool, targetField string, fallbackValue any, sourceFields ...string) {
 		if !enabled {
 			return
 		}
-		targetField := strings.TrimSpace(sourceField)
+		targetField = strings.TrimSpace(targetField)
 		if targetField == "" {
 			return
 		}
-		if value, ok := workspaceImageRawField(raw, targetField); ok {
+		sourceFields = append(sourceFields, targetField)
+		if value, ok := workspaceImageFirstRawField(raw, sourceFields...); ok {
 			extra[targetField] = value
 			return
 		}
@@ -355,13 +365,13 @@ func applyWorkspaceImageMappedFields(c *gin.Context, request *dto.ImageRequest, 
 			extra[targetField] = fallbackValue
 		}
 	}
-	addMapped(controls.ReferenceImageUpload, mappings.ReferenceImage, nil)
-	addMapped(controls.SizeControl, mappings.Size, request.Size)
-	addMapped(controls.RatioControl, mappings.Ratio, nil)
-	addMapped(controls.StyleControl, mappings.Style, nil)
-	addMapped(controls.QualityControl, mappings.Quality, request.Quality)
-	addMapped(controls.NegativePrompt, mappings.NegativePrompt, nil)
-	addMapped(controls.SeedControl, mappings.Seed, nil)
+	addMapped(controls.ReferenceImageUpload, mappings.ReferenceImage, nil, "image", "reference_image")
+	addMapped(controls.SizeControl, mappings.Size, request.Size, "size", "sizes")
+	addMapped(controls.RatioControl, mappings.Ratio, nil, "aspect_ratio", "ratio")
+	addMapped(controls.StyleControl, mappings.Style, nil, "style")
+	addMapped(controls.QualityControl, mappings.Quality, request.Quality, "quality")
+	addMapped(controls.NegativePrompt, mappings.NegativePrompt, nil, "negative_prompt")
+	addMapped(controls.SeedControl, mappings.Seed, nil, "seed")
 	if len(extra) == 0 {
 		return
 	}

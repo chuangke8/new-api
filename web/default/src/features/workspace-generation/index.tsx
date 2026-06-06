@@ -66,7 +66,6 @@ import {
   getWorkspaceVideoTask,
   getWorkspaceVideoModels,
   type WorkspaceImageFeatureControlsDto,
-  type WorkspaceImageFieldMappingsDto,
   type WorkspaceImageGenerationRequest,
   type WorkspaceImagePresetDto,
   type WorkspaceVideoFieldMappingsDto,
@@ -288,18 +287,6 @@ function defaultVideoFeatureControls(): WorkspaceVideoFeatureControlsDto {
   }
 }
 
-function defaultImageFieldMappings(): WorkspaceImageFieldMappingsDto {
-  return {
-    reference_image: 'image',
-    size: 'size',
-    ratio: 'aspect_ratio',
-    style: 'style',
-    quality: 'quality',
-    negative_prompt: 'negative_prompt',
-    seed: 'seed',
-  }
-}
-
 function defaultVideoFieldMappings(): WorkspaceVideoFieldMappingsDto {
   return {
     first_frame_image: DEFAULT_VIDEO_FIELD_MAPPINGS.firstFrameImage,
@@ -319,15 +306,14 @@ function defaultVideoFieldMappings(): WorkspaceVideoFieldMappingsDto {
   }
 }
 
-function setMappedPayloadField(
+function setPayloadField(
   payload: Record<string, unknown>,
-  field: string | undefined,
+  field: string,
   value: unknown
 ) {
-  const target = String(field || '').trim()
-  if (!target || value === undefined || value === null) return
+  if (!field || value === undefined || value === null) return
   if (typeof value === 'string' && value.trim() === '') return
-  payload[target] = value
+  payload[field] = value
 }
 
 function setMappedVideoPayloadField(
@@ -587,13 +573,6 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         batch_control: true,
       },
     [selectedImageModel?.feature_controls]
-  )
-  const imageFieldMappings = useMemo(
-    () => ({
-      ...defaultImageFieldMappings(),
-      ...(selectedImageModel?.field_mappings || {}),
-    }),
-    [selectedImageModel?.field_mappings]
   )
   const imageMaxBatchSize = Math.max(1, selectedImageModel?.max_batch_size || 4)
   const imageSizePresets = useMemo(
@@ -1089,41 +1068,41 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     if (options?.includeBatchCount) {
       payload.n = imageSubmitCount
     }
-    setMappedPayloadField(
+    setPayloadField(
       payload,
-      imageFieldMappings.negative_prompt,
+      'negative_prompt',
       imageFeatureControls.negative_prompt ? negativePrompt.trim() : undefined
     )
-    setMappedPayloadField(
+    setPayloadField(
       payload,
-      imageFieldMappings.reference_image,
+      'image',
       imageFeatureControls.reference_image_upload && referenceImage
         ? referenceImage.dataUrl
         : undefined
     )
-    setMappedPayloadField(
+    setPayloadField(
       payload,
-      imageFieldMappings.size,
+      'size',
       imageFeatureControls.size_control ? size : undefined
     )
-    setMappedPayloadField(
+    setPayloadField(
       payload,
-      imageFieldMappings.ratio,
+      'aspect_ratio',
       imageFeatureControls.ratio_control ? ratio : undefined
     )
-    setMappedPayloadField(
+    setPayloadField(
       payload,
-      imageFieldMappings.quality,
+      'quality',
       imageFeatureControls.quality_control ? quality : undefined
     )
-    setMappedPayloadField(
+    setPayloadField(
       payload,
-      imageFieldMappings.style,
+      'style',
       imageFeatureControls.style_control ? style : undefined
     )
-    setMappedPayloadField(
+    setPayloadField(
       payload,
-      imageFieldMappings.seed,
+      'seed',
       imageFeatureControls.seed_control && seedEnabled ? seed.trim() : undefined
     )
     return payload
@@ -1302,7 +1281,6 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     firstFrameImage,
     frameRate,
     imageFeatureControls,
-    imageFieldMappings,
     imageMaxBatchSize,
     imageSubmitCount,
     isImage,

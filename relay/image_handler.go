@@ -21,6 +21,32 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func workspaceImageExtraFieldMap(c *gin.Context) (map[string]any, bool) {
+	extraFields, ok := c.Get("workspace_image_extra_fields")
+	if !ok {
+		return nil, false
+	}
+	extraMap, ok := extraFields.(map[string]any)
+	if !ok || len(extraMap) == 0 {
+		return nil, false
+	}
+	return extraMap, true
+}
+
+func applyWorkspaceImageExtraFields(jsonData []byte, extraMap map[string]any) ([]byte, error) {
+	for key, value := range extraMap {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		nextJSON, err := sjson.SetBytes(jsonData, key, value)
+		if err != nil {
+			return nil, err
+		}
+		jsonData = nextJSON
+	}
+	return jsonData, nil
+}
+
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
@@ -52,7 +78,25 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		requestBody = common.ReaderOnly(storage)
+		if extraMap, ok := workspaceImageExtraFieldMap(c); ok {
+			jsonData, err := storage.Bytes()
+			if err != nil {
+				return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			}
+			jsonData, err = applyWorkspaceImageExtraFields(jsonData, extraMap)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			defer closer.Close()
+			info.UpstreamRequestBodySize = size
+			requestBody = body
+		} else {
+			requestBody = common.ReaderOnly(storage)
+		}
 	} else {
 		convertedRequest, err := adaptor.ConvertImageRequest(c, info, *request)
 		if err != nil {
@@ -69,18 +113,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 			}
 
-			if extraFields, ok := c.Get("workspace_image_extra_fields"); ok {
-				if extraMap, ok := extraFields.(map[string]any); ok {
-					for key, value := range extraMap {
-						if strings.TrimSpace(key) == "" {
-							continue
-						}
-						nextJSON, err := sjson.SetBytes(jsonData, key, value)
-						if err != nil {
-							return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-						}
-						jsonData = nextJSON
-					}
+			if extraMap, ok := workspaceImageExtraFieldMap(c); ok {
+				jsonData, err = applyWorkspaceImageExtraFields(jsonData, extraMap)
+				if err != nil {
+					return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 				}
 			}
 

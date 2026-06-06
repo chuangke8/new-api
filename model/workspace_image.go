@@ -30,6 +30,7 @@ type WorkspaceImageChannel struct {
 	ModelAlias      string `json:"model_alias" gorm:"type:varchar(255);default:''"`
 	CategoryId      int    `json:"category_id" gorm:"index;not null"`
 	FeatureControls string `json:"feature_controls" gorm:"type:text"`
+	FieldMappings   string `json:"field_mappings" gorm:"type:text"`
 	MaxBatchSize    int    `json:"max_batch_size" gorm:"default:4"`
 	SizePresets     string `json:"size_presets" gorm:"type:text"`
 	RatioPresets    string `json:"ratio_presets" gorm:"type:text"`
@@ -61,6 +62,16 @@ type WorkspaceImageFeatureControls struct {
 	BatchControl         bool `json:"batch_control"`
 }
 
+type WorkspaceImageFieldMappings struct {
+	ReferenceImage string `json:"reference_image"`
+	Size           string `json:"size"`
+	Ratio          string `json:"ratio"`
+	Style          string `json:"style"`
+	Quality        string `json:"quality"`
+	NegativePrompt string `json:"negative_prompt"`
+	Seed           string `json:"seed"`
+}
+
 type WorkspaceImageModel struct {
 	Id              int                           `json:"id"`
 	Model           string                        `json:"model"`
@@ -71,6 +82,7 @@ type WorkspaceImageModel struct {
 	CategoryAlias   string                        `json:"category_alias"`
 	CategoryDisplay string                        `json:"category_display"`
 	FeatureControls WorkspaceImageFeatureControls `json:"feature_controls"`
+	FieldMappings   WorkspaceImageFieldMappings   `json:"field_mappings"`
 	MaxBatchSize    int                           `json:"max_batch_size"`
 	SizePresets     []WorkspaceImagePreset        `json:"size_presets"`
 	RatioPresets    []WorkspaceImagePreset        `json:"ratio_presets"`
@@ -89,6 +101,51 @@ func defaultWorkspaceImageFeatureControls() WorkspaceImageFeatureControls {
 		SeedControl:          true,
 		BatchControl:         true,
 	}
+}
+
+func DefaultWorkspaceImageFieldMappings() WorkspaceImageFieldMappings {
+	return WorkspaceImageFieldMappings{
+		ReferenceImage: "image",
+		Size:           "size",
+		Ratio:          "aspect_ratio",
+		Style:          "style",
+		Quality:        "quality",
+		NegativePrompt: "negative_prompt",
+		Seed:           "seed",
+	}
+}
+
+func NormalizeWorkspaceImageFieldMappings(mappings WorkspaceImageFieldMappings) WorkspaceImageFieldMappings {
+	defaults := DefaultWorkspaceImageFieldMappings()
+	mappings.ReferenceImage = strings.TrimSpace(mappings.ReferenceImage)
+	mappings.Size = strings.TrimSpace(mappings.Size)
+	mappings.Ratio = strings.TrimSpace(mappings.Ratio)
+	mappings.Style = strings.TrimSpace(mappings.Style)
+	mappings.Quality = strings.TrimSpace(mappings.Quality)
+	mappings.NegativePrompt = strings.TrimSpace(mappings.NegativePrompt)
+	mappings.Seed = strings.TrimSpace(mappings.Seed)
+	if mappings.ReferenceImage == "" {
+		mappings.ReferenceImage = defaults.ReferenceImage
+	}
+	if mappings.Size == "" {
+		mappings.Size = defaults.Size
+	}
+	if mappings.Ratio == "" {
+		mappings.Ratio = defaults.Ratio
+	}
+	if mappings.Style == "" {
+		mappings.Style = defaults.Style
+	}
+	if mappings.Quality == "" {
+		mappings.Quality = defaults.Quality
+	}
+	if mappings.NegativePrompt == "" {
+		mappings.NegativePrompt = defaults.NegativePrompt
+	}
+	if mappings.Seed == "" {
+		mappings.Seed = defaults.Seed
+	}
+	return mappings
 }
 
 func workspaceImagePresetsToString(presets []WorkspaceImagePreset) string {
@@ -137,6 +194,23 @@ func workspaceImageFeatureControlsFromString(value string) WorkspaceImageFeature
 	}
 	_ = common.UnmarshalJsonStr(value, &controls)
 	return controls
+}
+
+func workspaceImageFieldMappingsToString(mappings WorkspaceImageFieldMappings) string {
+	b, err := common.Marshal(NormalizeWorkspaceImageFieldMappings(mappings))
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+func workspaceImageFieldMappingsFromString(value string) WorkspaceImageFieldMappings {
+	mappings := DefaultWorkspaceImageFieldMappings()
+	if strings.TrimSpace(value) == "" {
+		return mappings
+	}
+	_ = common.UnmarshalJsonStr(value, &mappings)
+	return NormalizeWorkspaceImageFieldMappings(mappings)
 }
 
 func EnsureDefaultWorkspaceImageCategory() (*WorkspaceImageCategory, error) {
@@ -244,6 +318,9 @@ func CreateWorkspaceImageChannel(channel *WorkspaceImageChannel) error {
 	if strings.TrimSpace(channel.FeatureControls) == "" {
 		channel.FeatureControls = workspaceImageFeatureControlsToString(defaultWorkspaceImageFeatureControls())
 	}
+	if strings.TrimSpace(channel.FieldMappings) == "" {
+		channel.FieldMappings = workspaceImageFieldMappingsToString(DefaultWorkspaceImageFieldMappings())
+	}
 	return DB.Create(channel).Error
 }
 
@@ -254,6 +331,9 @@ func UpdateWorkspaceImageChannel(channel *WorkspaceImageChannel) error {
 	if channel.MaxBatchSize <= 0 {
 		channel.MaxBatchSize = 4
 	}
+	if strings.TrimSpace(channel.FieldMappings) == "" {
+		channel.FieldMappings = workspaceImageFieldMappingsToString(DefaultWorkspaceImageFieldMappings())
+	}
 	channel.UpdatedTime = common.GetTimestamp()
 	return DB.Model(&WorkspaceImageChannel{}).Where("id = ?", channel.Id).Updates(map[string]interface{}{
 		"weight":           channel.Weight,
@@ -261,6 +341,7 @@ func UpdateWorkspaceImageChannel(channel *WorkspaceImageChannel) error {
 		"model_alias":      channel.ModelAlias,
 		"category_id":      channel.CategoryId,
 		"feature_controls": channel.FeatureControls,
+		"field_mappings":   channel.FieldMappings,
 		"max_batch_size":   channel.MaxBatchSize,
 		"size_presets":     channel.SizePresets,
 		"ratio_presets":    channel.RatioPresets,
@@ -306,6 +387,7 @@ func workspaceImageChannelToModel(channel WorkspaceImageChannel) WorkspaceImageM
 		CategoryAlias:   categoryAlias,
 		CategoryDisplay: categoryDisplay,
 		FeatureControls: workspaceImageFeatureControlsFromString(channel.FeatureControls),
+		FieldMappings:   workspaceImageFieldMappingsFromString(channel.FieldMappings),
 		MaxBatchSize:    maxBatchSize,
 		SizePresets:     workspaceImagePresetsFromString(channel.SizePresets),
 		RatioPresets:    workspaceImagePresetsFromString(channel.RatioPresets),

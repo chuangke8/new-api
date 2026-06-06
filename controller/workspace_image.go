@@ -50,6 +50,7 @@ type workspaceImageChannelRequest struct {
 	ModelAlias      string                              `json:"model_alias"`
 	CategoryId      int                                 `json:"category_id"`
 	FeatureControls model.WorkspaceImageFeatureControls `json:"feature_controls"`
+	FieldMappings   model.WorkspaceImageFieldMappings   `json:"field_mappings"`
 	MaxBatchSize    int                                 `json:"max_batch_size"`
 	SizePresets     []model.WorkspaceImagePreset        `json:"size_presets"`
 	RatioPresets    []model.WorkspaceImagePreset        `json:"ratio_presets"`
@@ -136,6 +137,7 @@ func workspaceImageRequestToChannel(req workspaceImageChannelRequest) model.Work
 		ModelAlias:      req.ModelAlias,
 		CategoryId:      req.CategoryId,
 		FeatureControls: workspaceImageFeatureControlsToString(req.FeatureControls),
+		FieldMappings:   workspaceImageFieldMappingsToString(req.FieldMappings),
 		MaxBatchSize:    req.MaxBatchSize,
 		SizePresets:     workspaceImagePresetsToString(req.SizePresets),
 		RatioPresets:    workspaceImagePresetsToString(req.RatioPresets),
@@ -148,6 +150,14 @@ func workspaceImageRequestToChannel(req workspaceImageChannelRequest) model.Work
 
 func workspaceImageFeatureControlsToString(controls model.WorkspaceImageFeatureControls) string {
 	b, err := common.Marshal(controls)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+func workspaceImageFieldMappingsToString(mappings model.WorkspaceImageFieldMappings) string {
+	b, err := common.Marshal(model.NormalizeWorkspaceImageFieldMappings(mappings))
 	if err != nil {
 		return "{}"
 	}
@@ -264,10 +274,10 @@ func readWorkspaceImageGenerationRequest(c *gin.Context) (dto.ImageRequest, stri
 	return imageRequest, string(requestBody), nil
 }
 
-func validateWorkspaceImageGenerationRequest(request dto.ImageRequest) error {
+func validateWorkspaceImageGenerationRequest(request dto.ImageRequest) (*model.WorkspaceImageModel, error) {
 	channel, err := model.GetWorkspaceImageModel(request.Model)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	count := uint(1)
 	if request.N != nil {
@@ -278,12 +288,75 @@ func validateWorkspaceImageGenerationRequest(request dto.ImageRequest) error {
 		maxBatchSize = 4
 	}
 	if !channel.FeatureControls.BatchControl && count > 1 {
-		return errors.New("selected image channel does not support generation count control")
+		return nil, errors.New("selected image channel does not support generation count control")
 	}
 	if count > uint(maxBatchSize) {
-		return fmt.Errorf("generation count exceeds channel limit: max %d", maxBatchSize)
+		return nil, fmt.Errorf("generation count exceeds channel limit: max %d", maxBatchSize)
 	}
-	return nil
+	return channel, nil
+}
+
+func workspaceImageRawField(raw map[string]any, field string) (any, bool) {
+	field = strings.TrimSpace(field)
+	if field == "" {
+		return nil, false
+	}
+	value, ok := raw[field]
+	if !ok || value == nil {
+		return nil, false
+	}
+	if s, ok := value.(string); ok && strings.TrimSpace(s) == "" {
+		return nil, false
+	}
+	return value, true
+}
+
+func applyWorkspaceImageMappedFields(c *gin.Context, request *dto.ImageRequest, rawRequest string, channel *model.WorkspaceImageModel) {
+	if request == nil || channel == nil || strings.TrimSpace(rawRequest) == "" {
+		return
+	}
+	var raw map[string]any
+	if err := common.Unmarshal([]byte(rawRequest), &raw); err != nil {
+		return
+	}
+	controls := channel.FeatureControls
+	mappings := model.NormalizeWorkspaceImageFieldMappings(channel.FieldMappings)
+	extra := make(map[string]any)
+	addMapped := func(enabled bool, sourceField string, fallbackValue any) {
+		if !enabled {
+			return
+		}
+		targetField := strings.TrimSpace(sourceField)
+		if targetField == "" {
+			return
+		}
+		if value, ok := workspaceImageRawField(raw, targetField); ok {
+			extra[targetField] = value
+			return
+		}
+		if fallbackValue != nil {
+			if s, ok := fallbackValue.(string); ok && strings.TrimSpace(s) == "" {
+				return
+			}
+			extra[targetField] = fallbackValue
+		}
+	}
+	addMapped(controls.ReferenceImageUpload, mappings.ReferenceImage, nil)
+	addMapped(controls.SizeControl, mappings.Size, request.Size)
+	addMapped(controls.RatioControl, mappings.Ratio, nil)
+	addMapped(controls.StyleControl, mappings.Style, nil)
+	addMapped(controls.QualityControl, mappings.Quality, request.Quality)
+	addMapped(controls.NegativePrompt, mappings.NegativePrompt, nil)
+	addMapped(controls.SeedControl, mappings.Seed, nil)
+	if len(extra) == 0 {
+		return
+	}
+	b, err := common.Marshal(extra)
+	if err != nil {
+		return
+	}
+	request.ExtraFields = b
+	c.Set("workspace_image_extra_fields", extra)
 }
 
 func newWorkspaceImageTaskID() string {
@@ -452,9 +525,17 @@ func GenerateWorkspaceImage(c *gin.Context) {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
 	}
-	if err := validateWorkspaceImageGenerationRequest(imageRequest); err != nil {
+	imageChannel, err := validateWorkspaceImageGenerationRequest(imageRequest)
+	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
+	}
+	applyWorkspaceImageMappedFields(c, &imageRequest, rawRequest, imageChannel)
+	if mappedBody, err := common.Marshal(imageRequest); err == nil {
+		if storage, storageErr := common.CreateBodyStorage(mappedBody); storageErr == nil {
+			c.Set(common.KeyBodyStorage, storage)
+			c.Request.Body = io.NopCloser(storage)
+		}
 	}
 
 	c.Set("relay_mode", relayconstant.RelayModeImagesGenerations)

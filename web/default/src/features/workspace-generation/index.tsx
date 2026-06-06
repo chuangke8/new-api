@@ -58,30 +58,40 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Main } from '@/components/layout'
 import {
+  estimateWorkspaceImage,
+  estimateWorkspaceVideo,
   generateWorkspaceImage,
   generateWorkspaceVideo,
   getWorkspaceImageModels,
   getWorkspaceVideoTask,
   getWorkspaceVideoModels,
   type WorkspaceImageFeatureControlsDto,
+  type WorkspaceImageFieldMappingsDto,
+  type WorkspaceImageGenerationRequest,
   type WorkspaceImagePresetDto,
+  type WorkspaceVideoFieldMappingsDto,
   type WorkspaceVideoFeatureControlsDto,
+  type WorkspaceVideoGenerationRequest,
 } from '@/features/system-settings/workspace/api'
 import {
+  DEFAULT_VIDEO_FIELD_MAPPINGS,
   IMAGE_QUALITY_PRESETS,
   IMAGE_RATIO_PRESETS,
   IMAGE_SIZE_PRESETS,
   IMAGE_STYLE_PRESETS,
+  VIDEO_CAMERA_MOVEMENT_PRESETS,
   VIDEO_DURATION_PRESETS,
   VIDEO_FRAME_RATE_PRESETS,
   VIDEO_QUALITY_PRESETS,
   VIDEO_RATIO_PRESETS,
   VIDEO_RESOLUTION_PRESETS,
+  VIDEO_STYLE_PRESETS,
 } from '@/features/system-settings/workspace/config'
 import type { WorkspaceMappedPreset } from '@/features/system-settings/workspace/types'
 import { listTaskCenter } from '@/features/task-center/api'
 import type { TaskCenterRecord } from '@/features/task-center/types'
 import { formatUnixTime, parseDetail } from '@/features/task-center/utils'
+import { formatQuota } from '@/lib/format'
 
 type GenerationKind = 'image' | 'video'
 
@@ -276,6 +286,74 @@ function defaultVideoFeatureControls(): WorkspaceVideoFeatureControlsDto {
     seed_control: true,
     batch_control: true,
   }
+}
+
+function defaultImageFieldMappings(): WorkspaceImageFieldMappingsDto {
+  return {
+    reference_image: 'image',
+    size: 'size',
+    ratio: 'aspect_ratio',
+    style: 'style',
+    quality: 'quality',
+    negative_prompt: 'negative_prompt',
+    seed: 'seed',
+  }
+}
+
+function defaultVideoFieldMappings(): WorkspaceVideoFieldMappingsDto {
+  return {
+    first_frame_image: DEFAULT_VIDEO_FIELD_MAPPINGS.firstFrameImage,
+    reference_image: DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImage,
+    reference_images: DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImages,
+    last_frame_image: DEFAULT_VIDEO_FIELD_MAPPINGS.lastFrameImage,
+    resolution: DEFAULT_VIDEO_FIELD_MAPPINGS.resolution,
+    ratio: DEFAULT_VIDEO_FIELD_MAPPINGS.ratio,
+    duration: DEFAULT_VIDEO_FIELD_MAPPINGS.duration,
+    frame_rate: DEFAULT_VIDEO_FIELD_MAPPINGS.frameRate,
+    style: DEFAULT_VIDEO_FIELD_MAPPINGS.style,
+    quality: DEFAULT_VIDEO_FIELD_MAPPINGS.quality,
+    negative_prompt: DEFAULT_VIDEO_FIELD_MAPPINGS.negativePrompt,
+    audio: DEFAULT_VIDEO_FIELD_MAPPINGS.audio,
+    camera_movement: DEFAULT_VIDEO_FIELD_MAPPINGS.cameraMovement,
+    seed: DEFAULT_VIDEO_FIELD_MAPPINGS.seed,
+  }
+}
+
+function setMappedPayloadField(
+  payload: Record<string, unknown>,
+  field: string | undefined,
+  value: unknown
+) {
+  const target = String(field || '').trim()
+  if (!target || value === undefined || value === null) return
+  if (typeof value === 'string' && value.trim() === '') return
+  payload[target] = value
+}
+
+function setMappedVideoPayloadField(
+  payload: Record<string, unknown>,
+  metadata: Record<string, unknown>,
+  field: string | undefined,
+  value: unknown
+) {
+  let target = String(field || '').trim()
+  if (!target || value === undefined || value === null) return
+  if (typeof value === 'string' && value.trim() === '') return
+  if (Array.isArray(value) && value.length === 0) return
+  target = target.startsWith('metadata.') ? target.slice('metadata.'.length) : target
+  const topLevelFields = new Set([
+    'image',
+    'images',
+    'size',
+    'duration',
+    'seconds',
+    'input_reference',
+  ])
+  if (topLevelFields.has(target)) {
+    payload[target] = value
+    return
+  }
+  metadata[target] = value
 }
 
 function generationStatusLabel(t: (key: string) => string, status: string) {
@@ -494,6 +572,13 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
       },
     [selectedImageModel?.feature_controls]
   )
+  const imageFieldMappings = useMemo(
+    () => ({
+      ...defaultImageFieldMappings(),
+      ...(selectedImageModel?.field_mappings || {}),
+    }),
+    [selectedImageModel?.field_mappings]
+  )
   const imageMaxBatchSize = Math.max(1, selectedImageModel?.max_batch_size || 4)
   const imageSizePresets = useMemo(
     () =>
@@ -534,6 +619,13 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
   const videoFeatureControls: WorkspaceVideoFeatureControlsDto = useMemo(
     () => selectedVideoModel?.feature_controls || defaultVideoFeatureControls(),
     [selectedVideoModel?.feature_controls]
+  )
+  const videoFieldMappings = useMemo(
+    () => ({
+      ...defaultVideoFieldMappings(),
+      ...(selectedVideoModel?.field_mappings || {}),
+    }),
+    [selectedVideoModel?.field_mappings]
   )
   const videoMaxBatchSize = Math.max(1, selectedVideoModel?.max_batch_size || 1)
   const videoResolutionPresets = useMemo(
@@ -578,7 +670,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         ? enabledVideoPresets(selectedVideoModel.style_presets).map(
             videoPresetToMappedPreset
           )
-        : IMAGE_STYLE_PRESETS,
+        : VIDEO_STYLE_PRESETS,
     [selectedVideoModel]
   )
   const videoQualityPresets = useMemo(
@@ -588,6 +680,15 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
             videoPresetToMappedPreset
           )
         : VIDEO_QUALITY_PRESETS,
+    [selectedVideoModel]
+  )
+  const videoCameraPresets = useMemo(
+    () =>
+      selectedVideoModel
+        ? enabledVideoPresets(selectedVideoModel.camera_movement_presets || []).map(
+            videoPresetToMappedPreset
+          )
+        : VIDEO_CAMERA_MOVEMENT_PRESETS,
     [selectedVideoModel]
   )
   const imageHistoryQuery = useQuery({
@@ -760,7 +861,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
       firstOrCurrent(
         videoStylePresets,
         current,
-        IMAGE_STYLE_PRESETS[0]?.value || ''
+        VIDEO_STYLE_PRESETS[0]?.value || ''
       )
     )
     setQuality((current) =>
@@ -770,9 +871,17 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         VIDEO_QUALITY_PRESETS[0]?.value || ''
       )
     )
+    setCameraMovement((current) =>
+      firstOrCurrent(
+        videoCameraPresets,
+        current,
+        VIDEO_CAMERA_MOVEMENT_PRESETS[0]?.value || ''
+      )
+    )
   }, [
     isImage,
     selectedVideoModel?.id,
+    videoCameraPresets,
     videoDurationPresets,
     videoFrameRatePresets,
     videoQualityPresets,
@@ -899,6 +1008,266 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     }
   }, [isImage, items])
 
+  const imageSubmitCount = imageFeatureControls.batch_control ? count : 1
+  const videoSubmitCount = videoFeatureControls.batch_control ? count : 1
+
+  const buildImagePayload = (options?: { includeBatchCount?: boolean }) => {
+    const payload: WorkspaceImageGenerationRequest & Record<string, unknown> = {
+      model: effectiveModel,
+      prompt: prompt.trim(),
+      response_format: 'url' as const,
+    }
+    if (options?.includeBatchCount) {
+      payload.n = imageSubmitCount
+    }
+    setMappedPayloadField(
+      payload,
+      imageFieldMappings.negative_prompt,
+      imageFeatureControls.negative_prompt ? negativePrompt.trim() : undefined
+    )
+    setMappedPayloadField(
+      payload,
+      imageFieldMappings.reference_image,
+      imageFeatureControls.reference_image_upload && referenceImage
+        ? referenceImage.dataUrl
+        : undefined
+    )
+    setMappedPayloadField(
+      payload,
+      imageFieldMappings.size,
+      imageFeatureControls.size_control ? size : undefined
+    )
+    setMappedPayloadField(
+      payload,
+      imageFieldMappings.ratio,
+      imageFeatureControls.ratio_control ? ratio : undefined
+    )
+    setMappedPayloadField(
+      payload,
+      imageFieldMappings.quality,
+      imageFeatureControls.quality_control ? quality : undefined
+    )
+    setMappedPayloadField(
+      payload,
+      imageFieldMappings.style,
+      imageFeatureControls.style_control ? style : undefined
+    )
+    setMappedPayloadField(
+      payload,
+      imageFieldMappings.seed,
+      imageFeatureControls.seed_control && seedEnabled ? seed.trim() : undefined
+    )
+    return payload
+  }
+
+  const buildVideoPayload = () => {
+    const durationNumber = Number.parseInt(duration, 10)
+    const videoMetadata: Record<string, unknown> = {
+      source: 'workspace_video',
+    }
+    const videoPayload: WorkspaceVideoGenerationRequest &
+      Record<string, unknown> = {
+      model: effectiveModel,
+      prompt: prompt.trim(),
+      metadata: videoMetadata,
+    }
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.reference_image,
+      videoFeatureControls.reference_image_upload && referenceImage
+        ? referenceImage.dataUrl
+        : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.reference_images,
+      videoFeatureControls.reference_image_upload && referenceImage
+        ? [referenceImage.dataUrl]
+        : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.first_frame_image,
+      videoFeatureControls.first_frame_image && firstFrameImage
+        ? firstFrameImage.dataUrl
+        : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.last_frame_image,
+      videoFeatureControls.last_frame_image && lastFrameImage
+        ? lastFrameImage.dataUrl
+        : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.resolution,
+      videoFeatureControls.resolution_control ? size : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.duration,
+      videoFeatureControls.duration_control && Number.isFinite(durationNumber)
+        ? durationNumber
+        : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.ratio,
+      videoFeatureControls.ratio_control ? ratio : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.frame_rate,
+      videoFeatureControls.frame_rate_control ? frameRate : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.style,
+      videoFeatureControls.style_control ? style : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.quality,
+      videoFeatureControls.quality_control ? quality : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.negative_prompt,
+      videoFeatureControls.negative_prompt ? negativePrompt.trim() : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.audio,
+      videoFeatureControls.audio_track ? audioEnabled : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.camera_movement,
+      videoFeatureControls.camera_control ? cameraMovement.trim() : undefined
+    )
+    setMappedVideoPayloadField(
+      videoPayload,
+      videoMetadata,
+      videoFieldMappings.seed,
+      videoFeatureControls.seed_control && seedEnabled ? seed.trim() : undefined
+    )
+    return videoPayload
+  }
+
+  const [estimatedQuota, setEstimatedQuota] = useState<number | null>(null)
+  const [isEstimatingCost, setIsEstimatingCost] = useState(false)
+  const [estimateUnavailable, setEstimateUnavailable] = useState(false)
+
+  useEffect(() => {
+    if (!effectiveModel || !prompt.trim()) {
+      setEstimatedQuota(null)
+      setIsEstimatingCost(false)
+      setEstimateUnavailable(false)
+      return
+    }
+
+    const submitCount = isImage ? imageSubmitCount : videoSubmitCount
+    const maxBatchSize = isImage ? imageMaxBatchSize : videoMaxBatchSize
+    if (submitCount > maxBatchSize) {
+      setEstimatedQuota(null)
+      setIsEstimatingCost(false)
+      setEstimateUnavailable(true)
+      return
+    }
+
+    let cancelled = false
+    setIsEstimatingCost(true)
+    setEstimateUnavailable(false)
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = isImage
+          ? await estimateWorkspaceImage(
+              buildImagePayload({ includeBatchCount: true })
+            )
+          : await estimateWorkspaceVideo(buildVideoPayload())
+        if (cancelled) return
+        if (response.success && response.data) {
+          setEstimatedQuota(response.data.quota)
+          setEstimateUnavailable(false)
+        } else {
+          setEstimatedQuota(null)
+          setEstimateUnavailable(true)
+        }
+      } catch {
+        if (!cancelled) {
+          setEstimatedQuota(null)
+          setEstimateUnavailable(true)
+        }
+      } finally {
+        if (!cancelled) {
+          setIsEstimatingCost(false)
+        }
+      }
+    }, 500)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [
+    audioEnabled,
+    cameraMovement,
+    count,
+    duration,
+    effectiveModel,
+    firstFrameImage,
+    frameRate,
+    imageFeatureControls,
+    imageFieldMappings,
+    imageMaxBatchSize,
+    imageSubmitCount,
+    isImage,
+    lastFrameImage,
+    negativePrompt,
+    prompt,
+    quality,
+    ratio,
+    referenceImage,
+    seed,
+    seedEnabled,
+    size,
+    style,
+    videoFeatureControls,
+    videoFieldMappings,
+    videoMaxBatchSize,
+    videoSubmitCount,
+  ])
+
+  const estimatedCostLabel = useMemo(() => {
+    if (isEstimatingCost) {
+      return t('Estimating cost...')
+    }
+    if (estimatedQuota !== null) {
+      return t('Estimated cost: {{amount}}', {
+        amount: formatQuota(estimatedQuota),
+      })
+    }
+    if (estimateUnavailable) {
+      return t('Estimated cost unavailable')
+    }
+    return t('Estimated cost: {{amount}}', { amount: '--' })
+  }, [estimateUnavailable, estimatedQuota, isEstimatingCost, t])
+
   const generate = async () => {
     if (!prompt.trim()) {
       toast.error(t('Prompt is required'))
@@ -911,7 +1280,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     setIsGenerating(true)
     try {
       if (kind === 'image') {
-        const submitCount = imageFeatureControls.batch_control ? count : 1
+        const submitCount = imageSubmitCount
         if (submitCount > imageMaxBatchSize) {
           toast.error(
             t('Generation count cannot exceed {{count}}', {
@@ -925,29 +1294,16 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
           submitCount,
           t('Preparing image task submission...')
         )
-        const payload = {
-          model: effectiveModel,
-          prompt: prompt.trim(),
-          negative_prompt:
-            imageFeatureControls.negative_prompt && negativePrompt.trim()
-              ? negativePrompt.trim()
-              : undefined,
-          image:
-            imageFeatureControls.reference_image_upload && referenceImage
-              ? referenceImage.dataUrl
-              : undefined,
-          size: imageFeatureControls.size_control ? size : undefined,
-          quality: imageFeatureControls.quality_control ? quality : undefined,
-          style: imageFeatureControls.style_control ? style : undefined,
-          seed:
-            imageFeatureControls.seed_control && seedEnabled && seed.trim()
-              ? seed.trim()
-              : undefined,
-          response_format: 'url' as const,
-        }
-        const resultData = []
-        let submittedCount = 0
+        const submittedPrompt = prompt
+        const submittedSize = size
+        const submittedRatio = ratio
+        const submittedQuality = quality
+        const modelLabel =
+          modelOptions.find((item) => item.value === effectiveModel)?.label ||
+          effectiveModel
+        const nextItems: GeneratedItem[] = []
         const errors: string[] = []
+        let submittedCount = 0
         for (let index = 0; index < submitCount; index += 1) {
           updateBatchProgress({
             current: index + 1,
@@ -957,12 +1313,27 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
             }),
           })
           try {
-            const response = await generateWorkspaceImage(payload)
-            const data = Array.isArray(response.data) ? response.data : []
-            submittedCount += 1
-            if (data.length > 0) {
-              resultData.push(...data)
+            const response = await generateWorkspaceImage(buildImagePayload())
+            const resultData = Array.isArray(response.data) ? response.data : []
+            if (resultData.length === 0) {
+              throw new Error(t('No generation results returned'))
             }
+            nextItems.push(
+              ...resultData.map((item, resultIndex) => ({
+                id: `${kind}-${Date.now()}-${index}-${resultIndex}`,
+                kind,
+                prompt: submittedPrompt,
+                revisedPrompt: item.revised_prompt,
+                model: modelLabel,
+                status: 'ready' as const,
+                imageUrl: item.url,
+                b64Json: item.b64_json,
+                size: submittedSize,
+                ratio: submittedRatio,
+                quality: submittedQuality,
+              }))
+            )
+            submittedCount += 1
             updateBatchProgress({
               completed: submittedCount,
               message: t('Submitted {{completed}} of {{total}} image requests', {
@@ -982,35 +1353,17 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
             })
           }
         }
-        if (submittedCount === 0) {
+        if (nextItems.length === 0) {
           const message = errors[0] || t('No generation results returned')
           updateBatchProgress({
             status: 'error',
-            message: t('Generation failed'),
+            message: t('Image generation failed'),
             error: message,
           })
           toast.error(message)
           return
         }
-        if (resultData.length > 0) {
-          const modelLabel =
-            modelOptions.find((item) => item.value === effectiveModel)?.label ||
-            effectiveModel
-          const nextItems = resultData.map((item, index) => ({
-            id: `${kind}-${Date.now()}-${index}`,
-            kind,
-            prompt,
-            revisedPrompt: item.revised_prompt,
-            model: modelLabel,
-            status: 'ready' as const,
-            imageUrl: item.url,
-            b64Json: item.b64_json,
-            size,
-            ratio,
-            quality,
-          }))
-          setItems((current) => [...nextItems, ...current])
-        }
+        setItems((current) => [...nextItems, ...current])
         await queryClient.invalidateQueries({
           queryKey: ['workspace-image-generation-history'],
         })
@@ -1036,7 +1389,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         return
       }
 
-      const submitCount = videoFeatureControls.batch_control ? count : 1
+      const submitCount = videoSubmitCount
       if (submitCount > videoMaxBatchSize) {
         toast.error(
           t('Generation count cannot exceed {{count}}', {
@@ -1050,32 +1403,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
         submitCount,
         t('Preparing video task submission...')
       )
-      const durationNumber = Number.parseInt(duration, 10)
-      const metadata: Record<string, unknown> = {
-        source: 'workspace_video',
-      }
-      if (videoFeatureControls.ratio_control) metadata.ratio = ratio
-      if (videoFeatureControls.frame_rate_control)
-        metadata.frame_rate = frameRate
-      if (videoFeatureControls.style_control) metadata.style = style
-      if (videoFeatureControls.quality_control) metadata.quality = quality
-      if (videoFeatureControls.negative_prompt && negativePrompt.trim()) {
-        metadata.negative_prompt = negativePrompt.trim()
-      }
-      if (videoFeatureControls.audio_track) metadata.audio = audioEnabled
-      if (videoFeatureControls.camera_control && cameraMovement.trim()) {
-        metadata.camera_movement = cameraMovement.trim()
-      }
-      if (videoFeatureControls.seed_control && seedEnabled && seed.trim()) {
-        metadata.seed = seed.trim()
-      }
-      if (videoFeatureControls.reference_image_upload && referenceImage) {
-        metadata.reference_image = referenceImage.dataUrl
-        metadata.reference_images = [referenceImage.dataUrl]
-      }
-      if (videoFeatureControls.last_frame_image && lastFrameImage) {
-        metadata.last_frame_image = lastFrameImage.dataUrl
-      }
+      const videoPayload = buildVideoPayload()
       const modelLabel =
         modelOptions.find((item) => item.value === effectiveModel)?.label ||
         effectiveModel
@@ -1090,23 +1418,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
           }),
         })
         try {
-          const response = await generateWorkspaceVideo({
-            model: effectiveModel,
-            prompt: prompt.trim(),
-            image:
-              videoFeatureControls.first_frame_image && firstFrameImage
-                ? firstFrameImage.dataUrl
-                : videoFeatureControls.reference_image_upload && referenceImage
-                  ? referenceImage.dataUrl
-                  : undefined,
-            size: videoFeatureControls.resolution_control ? size : undefined,
-            duration:
-              videoFeatureControls.duration_control &&
-              Number.isFinite(durationNumber)
-                ? durationNumber
-                : undefined,
-            metadata,
-          })
+          const response = await generateWorkspaceVideo(videoPayload)
           const taskId =
             response.task_id ||
             response.id ||
@@ -1373,6 +1685,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                   frameRatePresets={videoFrameRatePresets}
                   stylePresets={videoStylePresets}
                   qualityPresets={videoQualityPresets}
+                  cameraPresets={videoCameraPresets}
                   onSizeChange={setSize}
                   onRatioChange={setRatio}
                   onStyleChange={setStyle}
@@ -1402,7 +1715,12 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
                 ) : (
                   <Video />
                 )}
-                {kind === 'image' ? t('Generate image') : t('Generate video')}
+                <span className='min-w-0 truncate'>
+                  {kind === 'image' ? t('Generate image') : t('Generate video')}
+                </span>
+                <span className='shrink-0 text-xs font-normal opacity-80'>
+                  {estimatedCostLabel}
+                </span>
               </Button>
             </CardContent>
           </Card>
@@ -1881,6 +2199,7 @@ function VideoControls(props: {
   frameRatePresets: string[]
   stylePresets: GenerationMappedPreset[]
   qualityPresets: GenerationMappedPreset[]
+  cameraPresets: GenerationMappedPreset[]
   size: string
   ratio: string
   style: string
@@ -2003,8 +2322,23 @@ function VideoControls(props: {
           onCheckedChange={props.onAudioEnabledChange}
         />
       )}
+      {props.featureControls.camera_control && props.cameraPresets.length > 0 && (
+        <MappedPresetSelect
+          label={t('Camera movement presets')}
+          value={props.cameraMovement}
+          values={props.cameraPresets}
+          zhLanguage={props.zhLanguage}
+          onChange={props.onCameraMovementChange}
+        />
+      )}
       {props.featureControls.camera_control && (
-        <Field label={t('Camera movement')}>
+        <Field
+          label={
+            props.cameraPresets.length > 0
+              ? t('Custom camera movement')
+              : t('Camera movement')
+          }
+        >
           <Input
             value={props.cameraMovement}
             onChange={(event) =>
@@ -2321,14 +2655,14 @@ function UploadField(props: {
         <div className='border-border bg-muted/20 overflow-hidden rounded-lg border'>
           <div
             className={cn(
-              'flex items-center justify-center overflow-hidden',
-              props.compact ? 'aspect-square' : 'aspect-video'
+              'bg-background/70 flex items-center justify-center overflow-hidden',
+              props.compact ? 'h-28' : 'h-44'
             )}
           >
             <img
               src={props.value.dataUrl}
               alt={props.value.name || props.label}
-              className='size-full object-cover'
+              className='max-h-full max-w-full object-contain'
             />
           </div>
           <div className='text-muted-foreground truncate px-2 py-1 text-xs'>

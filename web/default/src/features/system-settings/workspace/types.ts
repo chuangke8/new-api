@@ -57,12 +57,42 @@ export type WorkspaceChannel = {
   ratioPresets?: string[]
   stylePresets?: WorkspaceMappedPreset[]
   qualityPresets?: WorkspaceMappedPreset[]
+  cameraPresets?: WorkspaceMappedPreset[]
   maxBatchSize?: number
+  imageFieldMappings?: WorkspaceImageFieldMappings
+  videoFieldMappings?: WorkspaceVideoFieldMappings
   durationPresets?: string[]
   frameRatePresets?: string[]
   capabilities: Record<WorkspaceCapabilityKey, boolean>
   disabled: boolean
   remark: string
+}
+
+export type WorkspaceImageFieldMappings = {
+  referenceImage: string
+  size: string
+  ratio: string
+  style: string
+  quality: string
+  negativePrompt: string
+  seed: string
+}
+
+export type WorkspaceVideoFieldMappings = {
+  firstFrameImage: string
+  referenceImage: string
+  referenceImages: string
+  lastFrameImage: string
+  resolution: string
+  ratio: string
+  duration: string
+  frameRate: string
+  style: string
+  quality: string
+  negativePrompt: string
+  audio: string
+  cameraMovement: string
+  seed: string
 }
 
 export type WorkspaceMappedPreset = {

@@ -75,6 +75,8 @@ import {
   createDefaultCategories,
   createDefaultChannels,
   createEmptyChannel,
+  DEFAULT_IMAGE_FIELD_MAPPINGS,
+  DEFAULT_VIDEO_FIELD_MAPPINGS,
   FALLBACK_MODEL_OPTIONS,
   WORKSPACE_MANAGER_CONFIGS,
 } from './config'
@@ -110,10 +112,12 @@ import {
   type WorkspaceChatChannelDto,
   type WorkspaceImageCategoryDto,
   type WorkspaceImageChannelDto,
+  type WorkspaceImageFieldMappingsDto,
   type WorkspaceImageFeatureControlsDto,
   type WorkspaceImagePresetDto,
   type WorkspaceVideoCategoryDto,
   type WorkspaceVideoChannelDto,
+  type WorkspaceVideoFieldMappingsDto,
   type WorkspaceVideoFeatureControlsDto,
   type WorkspaceVideoPresetDto,
 } from './api'
@@ -203,6 +207,58 @@ function fromImagePresetDto(preset: WorkspaceImagePresetDto): WorkspaceMappedPre
   }
 }
 
+function fromImageFieldMappingsDto(
+  mappings?: string | WorkspaceImageFieldMappingsDto
+): WorkspaceChannel['imageFieldMappings'] {
+  const parsed = parseMaybeJson<WorkspaceImageFieldMappingsDto | undefined>(
+    mappings || undefined,
+    undefined
+  )
+  return {
+    ...DEFAULT_IMAGE_FIELD_MAPPINGS,
+    referenceImage: parsed?.reference_image || DEFAULT_IMAGE_FIELD_MAPPINGS.referenceImage,
+    size: parsed?.size || DEFAULT_IMAGE_FIELD_MAPPINGS.size,
+    ratio: parsed?.ratio || DEFAULT_IMAGE_FIELD_MAPPINGS.ratio,
+    style: parsed?.style || DEFAULT_IMAGE_FIELD_MAPPINGS.style,
+    quality: parsed?.quality || DEFAULT_IMAGE_FIELD_MAPPINGS.quality,
+    negativePrompt:
+      parsed?.negative_prompt || DEFAULT_IMAGE_FIELD_MAPPINGS.negativePrompt,
+    seed: parsed?.seed || DEFAULT_IMAGE_FIELD_MAPPINGS.seed,
+  }
+}
+
+function fromVideoFieldMappingsDto(
+  mappings?: string | WorkspaceVideoFieldMappingsDto
+): WorkspaceChannel['videoFieldMappings'] {
+  const parsed = parseMaybeJson<WorkspaceVideoFieldMappingsDto | undefined>(
+    mappings || undefined,
+    undefined
+  )
+  return {
+    ...DEFAULT_VIDEO_FIELD_MAPPINGS,
+    firstFrameImage:
+      parsed?.first_frame_image || DEFAULT_VIDEO_FIELD_MAPPINGS.firstFrameImage,
+    referenceImage:
+      parsed?.reference_image || DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImage,
+    referenceImages:
+      parsed?.reference_images || DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImages,
+    lastFrameImage:
+      parsed?.last_frame_image || DEFAULT_VIDEO_FIELD_MAPPINGS.lastFrameImage,
+    resolution: parsed?.resolution || DEFAULT_VIDEO_FIELD_MAPPINGS.resolution,
+    ratio: parsed?.ratio || DEFAULT_VIDEO_FIELD_MAPPINGS.ratio,
+    duration: parsed?.duration || DEFAULT_VIDEO_FIELD_MAPPINGS.duration,
+    frameRate: parsed?.frame_rate || DEFAULT_VIDEO_FIELD_MAPPINGS.frameRate,
+    style: parsed?.style || DEFAULT_VIDEO_FIELD_MAPPINGS.style,
+    quality: parsed?.quality || DEFAULT_VIDEO_FIELD_MAPPINGS.quality,
+    negativePrompt:
+      parsed?.negative_prompt || DEFAULT_VIDEO_FIELD_MAPPINGS.negativePrompt,
+    audio: parsed?.audio || DEFAULT_VIDEO_FIELD_MAPPINGS.audio,
+    cameraMovement:
+      parsed?.camera_movement || DEFAULT_VIDEO_FIELD_MAPPINGS.cameraMovement,
+    seed: parsed?.seed || DEFAULT_VIDEO_FIELD_MAPPINGS.seed,
+  }
+}
+
 function toImagePresetDto(preset: WorkspaceMappedPreset): WorkspaceImagePresetDto {
   return {
     value: preset.value,
@@ -272,6 +328,7 @@ function fromImageChannelDto(channel: WorkspaceImageChannelDto): WorkspaceChanne
     stylePresets: stylePresets.map(fromImagePresetDto),
     qualityPresets: qualityPresets.map(fromImagePresetDto),
     maxBatchSize: channel.max_batch_size || 4,
+    imageFieldMappings: fromImageFieldMappingsDto(channel.field_mappings),
     capabilities: {
       referenceImage: controls.reference_image_upload,
       sizeControl: controls.size_control,
@@ -366,6 +423,10 @@ function fromVideoChannelDto(channel: WorkspaceVideoChannelDto): WorkspaceChanne
     channel.quality_presets,
     []
   )
+  const cameraPresets = parseMaybeJson<WorkspaceVideoPresetDto[]>(
+    channel.camera_movement_presets,
+    []
+  )
   return {
     id: channel.id,
     weight: channel.weight,
@@ -378,7 +439,9 @@ function fromVideoChannelDto(channel: WorkspaceVideoChannelDto): WorkspaceChanne
     frameRatePresets: frameRatePresets.map((item) => item.value).filter(Boolean),
     stylePresets: stylePresets.map(fromVideoPresetDto),
     qualityPresets: qualityPresets.map(fromVideoPresetDto),
+    cameraPresets: cameraPresets.map(fromVideoPresetDto),
     maxBatchSize: channel.max_batch_size || 1,
+    videoFieldMappings: fromVideoFieldMappingsDto(channel.field_mappings),
     capabilities: {
       firstFrame: controls.first_frame_image,
       lastFrame: controls.last_frame_image,
@@ -444,6 +507,23 @@ function toImageChannelDto(channel: WorkspaceChannel) {
       seed_control: Boolean(channel.capabilities.seedControl),
       batch_control: Boolean(channel.capabilities.batchControl),
     },
+    field_mappings: {
+      reference_image:
+        channel.imageFieldMappings?.referenceImage ||
+        DEFAULT_IMAGE_FIELD_MAPPINGS.referenceImage,
+      size: channel.imageFieldMappings?.size || DEFAULT_IMAGE_FIELD_MAPPINGS.size,
+      ratio:
+        channel.imageFieldMappings?.ratio || DEFAULT_IMAGE_FIELD_MAPPINGS.ratio,
+      style:
+        channel.imageFieldMappings?.style || DEFAULT_IMAGE_FIELD_MAPPINGS.style,
+      quality:
+        channel.imageFieldMappings?.quality ||
+        DEFAULT_IMAGE_FIELD_MAPPINGS.quality,
+      negative_prompt:
+        channel.imageFieldMappings?.negativePrompt ||
+        DEFAULT_IMAGE_FIELD_MAPPINGS.negativePrompt,
+      seed: channel.imageFieldMappings?.seed || DEFAULT_IMAGE_FIELD_MAPPINGS.seed,
+    },
     max_batch_size: Math.max(1, Number(channel.maxBatchSize || 1)),
     size_presets: (channel.sizePresets || []).map(stringPresetToDto),
     ratio_presets: (channel.ratioPresets || []).map(stringPresetToDto),
@@ -480,6 +560,45 @@ function toVideoChannelDto(channel: WorkspaceChannel) {
       seed_control: Boolean(channel.capabilities.seedControl),
       batch_control: Boolean(channel.capabilities.batchControl),
     },
+    field_mappings: {
+      first_frame_image:
+        channel.videoFieldMappings?.firstFrameImage ||
+        DEFAULT_VIDEO_FIELD_MAPPINGS.firstFrameImage,
+      reference_image:
+        channel.videoFieldMappings?.referenceImage ||
+        DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImage,
+      reference_images:
+        channel.videoFieldMappings?.referenceImages ||
+        DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImages,
+      last_frame_image:
+        channel.videoFieldMappings?.lastFrameImage ||
+        DEFAULT_VIDEO_FIELD_MAPPINGS.lastFrameImage,
+      resolution:
+        channel.videoFieldMappings?.resolution ||
+        DEFAULT_VIDEO_FIELD_MAPPINGS.resolution,
+      ratio:
+        channel.videoFieldMappings?.ratio || DEFAULT_VIDEO_FIELD_MAPPINGS.ratio,
+      duration:
+        channel.videoFieldMappings?.duration ||
+        DEFAULT_VIDEO_FIELD_MAPPINGS.duration,
+      frame_rate:
+        channel.videoFieldMappings?.frameRate ||
+        DEFAULT_VIDEO_FIELD_MAPPINGS.frameRate,
+      style:
+        channel.videoFieldMappings?.style || DEFAULT_VIDEO_FIELD_MAPPINGS.style,
+      quality:
+        channel.videoFieldMappings?.quality ||
+        DEFAULT_VIDEO_FIELD_MAPPINGS.quality,
+      negative_prompt:
+        channel.videoFieldMappings?.negativePrompt ||
+        DEFAULT_VIDEO_FIELD_MAPPINGS.negativePrompt,
+      audio:
+        channel.videoFieldMappings?.audio || DEFAULT_VIDEO_FIELD_MAPPINGS.audio,
+      camera_movement:
+        channel.videoFieldMappings?.cameraMovement ||
+        DEFAULT_VIDEO_FIELD_MAPPINGS.cameraMovement,
+      seed: channel.videoFieldMappings?.seed || DEFAULT_VIDEO_FIELD_MAPPINGS.seed,
+    },
     max_batch_size: Math.max(1, Number(channel.maxBatchSize || 1)),
     resolution_presets: (channel.sizePresets || []).map(stringVideoPresetToDto),
     ratio_presets: (channel.ratioPresets || []).map(stringVideoPresetToDto),
@@ -489,6 +608,7 @@ function toVideoChannelDto(channel: WorkspaceChannel) {
     ),
     style_presets: (channel.stylePresets || []).map(toVideoPresetDto),
     quality_presets: (channel.qualityPresets || []).map(toVideoPresetDto),
+    camera_movement_presets: (channel.cameraPresets || []).map(toVideoPresetDto),
     disabled: channel.disabled,
     remark: channel.remark,
   }
@@ -1125,6 +1245,18 @@ function WorkspaceChannelsTable(props: {
                 ]
               : [
                   {
+                    id: 'stylePresets',
+                    header: () => t('Style presets'),
+                    cell: ({ row }) => (
+                      <PresetBadges
+                        values={(row.original.stylePresets || []).map((item) =>
+                          formatMappedPreset(item, zhLanguage)
+                        )}
+                      />
+                    ),
+                    size: 170,
+                  } satisfies ColumnDef<WorkspaceChannel>,
+                  {
                     id: 'durationPresets',
                     header: () => t('Duration presets'),
                     cell: ({ row }) => (
@@ -1143,6 +1275,18 @@ function WorkspaceChannelsTable(props: {
                       />
                     ),
                     size: 150,
+                  } satisfies ColumnDef<WorkspaceChannel>,
+                  {
+                    id: 'cameraPresets',
+                    header: () => t('Camera movement presets'),
+                    cell: ({ row }) => (
+                      <PresetBadges
+                        values={(row.original.cameraPresets || []).map((item) =>
+                          formatMappedPreset(item, zhLanguage)
+                        )}
+                      />
+                    ),
+                    size: 180,
                   } satisfies ColumnDef<WorkspaceChannel>,
                 ]),
             {
@@ -1586,6 +1730,12 @@ function ChannelDialog(props: {
   }, [props.open, props.value])
 
   if (!draft) return null
+  const selectedCategoryLabel =
+    props.categories.find((category) => String(category.id) === String(draft.category))
+      ?.alias ||
+    props.categories.find((category) => String(category.id) === String(draft.category))
+      ?.name ||
+    t('Select category')
 
   const updateCapability = (
     capability: WorkspaceCapabilityConfig,
@@ -1602,7 +1752,12 @@ function ChannelDialog(props: {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className={kind === 'video' ? 'sm:max-w-4xl' : 'sm:max-w-3xl'}>
+      <DialogContent
+        className={cn(
+          'max-h-[88vh] overflow-y-auto',
+          kind === 'video' ? 'sm:max-w-4xl' : 'sm:max-w-3xl'
+        )}
+      >
         <DialogHeader>
           <DialogTitle>{t('Edit channel configuration')}</DialogTitle>
           <DialogDescription>
@@ -1673,7 +1828,7 @@ function ChannelDialog(props: {
                 }}
               >
                 <SelectTrigger className='w-full'>
-                  <SelectValue />
+                  <span className='truncate'>{selectedCategoryLabel}</span>
                 </SelectTrigger>
                 <SelectContent>
                   {props.categories.map((category) => (
@@ -1705,6 +1860,22 @@ function ChannelDialog(props: {
               </Field>
             )}
           </div>
+          {kind === 'image' && (
+            <ImageFieldMappingEditor
+              value={draft.imageFieldMappings || DEFAULT_IMAGE_FIELD_MAPPINGS}
+              onChange={(imageFieldMappings) =>
+                setDraft({ ...draft, imageFieldMappings })
+              }
+            />
+          )}
+          {kind === 'video' && (
+            <VideoFieldMappingEditor
+              value={draft.videoFieldMappings || DEFAULT_VIDEO_FIELD_MAPPINGS}
+              onChange={(videoFieldMappings) =>
+                setDraft({ ...draft, videoFieldMappings })
+              }
+            />
+          )}
           <div className='space-y-3'>
             <Label>{t('Feature controls')}</Label>
             <div
@@ -1823,10 +1994,24 @@ function ChannelDialog(props: {
                 }
               />
               <MappedPresetEditor
+                label={t('Style presets')}
+                presets={draft.stylePresets || []}
+                onChange={(stylePresets) =>
+                  setDraft({ ...draft, stylePresets })
+                }
+              />
+              <MappedPresetEditor
                 label={t('Quality presets')}
                 presets={draft.qualityPresets || []}
                 onChange={(qualityPresets) =>
                   setDraft({ ...draft, qualityPresets })
+                }
+              />
+              <MappedPresetEditor
+                label={t('Camera movement presets')}
+                presets={draft.cameraPresets || []}
+                onChange={(cameraPresets) =>
+                  setDraft({ ...draft, cameraPresets })
                 }
               />
             </div>
@@ -1861,6 +2046,187 @@ function ChannelDialog(props: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function ImageFieldMappingEditor(props: {
+  value: NonNullable<WorkspaceChannel['imageFieldMappings']>
+  onChange: (value: NonNullable<WorkspaceChannel['imageFieldMappings']>) => void
+}) {
+  const { t } = useTranslation()
+  const update = (
+    key: keyof NonNullable<WorkspaceChannel['imageFieldMappings']>,
+    value: string
+  ) => {
+    props.onChange({
+      ...props.value,
+      [key]: value,
+    })
+  }
+  const fields: Array<{
+    key: keyof NonNullable<WorkspaceChannel['imageFieldMappings']>
+    label: string
+    placeholder: string
+  }> = [
+    {
+      key: 'referenceImage',
+      label: 'Reference image field',
+      placeholder: DEFAULT_IMAGE_FIELD_MAPPINGS.referenceImage,
+    },
+    {
+      key: 'size',
+      label: 'Size field',
+      placeholder: DEFAULT_IMAGE_FIELD_MAPPINGS.size,
+    },
+    {
+      key: 'ratio',
+      label: 'Ratio field',
+      placeholder: DEFAULT_IMAGE_FIELD_MAPPINGS.ratio,
+    },
+    {
+      key: 'style',
+      label: 'Style field',
+      placeholder: DEFAULT_IMAGE_FIELD_MAPPINGS.style,
+    },
+    {
+      key: 'quality',
+      label: 'Quality field',
+      placeholder: DEFAULT_IMAGE_FIELD_MAPPINGS.quality,
+    },
+    {
+      key: 'negativePrompt',
+      label: 'Negative prompt field',
+      placeholder: DEFAULT_IMAGE_FIELD_MAPPINGS.negativePrompt,
+    },
+    {
+      key: 'seed',
+      label: 'Seed field',
+      placeholder: DEFAULT_IMAGE_FIELD_MAPPINGS.seed,
+    },
+  ]
+  return (
+    <div className='space-y-3'>
+      <Label>{t('Image parameter field mapping')}</Label>
+      <div className='grid gap-3 sm:grid-cols-2'>
+        {fields.map((field) => (
+          <Field key={field.key} label={t(field.label)}>
+            <Input
+              value={props.value[field.key]}
+              placeholder={field.placeholder}
+              onChange={(event) => update(field.key, event.target.value)}
+            />
+          </Field>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function VideoFieldMappingEditor(props: {
+  value: NonNullable<WorkspaceChannel['videoFieldMappings']>
+  onChange: (value: NonNullable<WorkspaceChannel['videoFieldMappings']>) => void
+}) {
+  const { t } = useTranslation()
+  const update = (
+    key: keyof NonNullable<WorkspaceChannel['videoFieldMappings']>,
+    value: string
+  ) => {
+    props.onChange({
+      ...props.value,
+      [key]: value,
+    })
+  }
+  const fields: Array<{
+    key: keyof NonNullable<WorkspaceChannel['videoFieldMappings']>
+    label: string
+    placeholder: string
+  }> = [
+    {
+      key: 'firstFrameImage',
+      label: 'First frame image field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.firstFrameImage,
+    },
+    {
+      key: 'referenceImage',
+      label: 'Reference image field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImage,
+    },
+    {
+      key: 'referenceImages',
+      label: 'Reference images field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImages,
+    },
+    {
+      key: 'lastFrameImage',
+      label: 'Last frame image field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.lastFrameImage,
+    },
+    {
+      key: 'resolution',
+      label: 'Resolution field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.resolution,
+    },
+    {
+      key: 'ratio',
+      label: 'Ratio field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.ratio,
+    },
+    {
+      key: 'duration',
+      label: 'Duration field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.duration,
+    },
+    {
+      key: 'frameRate',
+      label: 'Frame rate field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.frameRate,
+    },
+    {
+      key: 'style',
+      label: 'Style field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.style,
+    },
+    {
+      key: 'quality',
+      label: 'Quality field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.quality,
+    },
+    {
+      key: 'negativePrompt',
+      label: 'Negative prompt field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.negativePrompt,
+    },
+    {
+      key: 'audio',
+      label: 'Audio field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.audio,
+    },
+    {
+      key: 'cameraMovement',
+      label: 'Camera movement field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.cameraMovement,
+    },
+    {
+      key: 'seed',
+      label: 'Seed field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.seed,
+    },
+  ]
+  return (
+    <div className='space-y-3'>
+      <Label>{t('Video parameter field mapping')}</Label>
+      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+        {fields.map((field) => (
+          <Field key={field.key} label={t(field.label)}>
+            <Input
+              value={props.value[field.key]}
+              placeholder={field.placeholder}
+              onChange={(event) => update(field.key, event.target.value)}
+            />
+          </Field>
+        ))}
+      </div>
+    </div>
   )
 }
 

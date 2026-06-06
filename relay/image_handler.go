@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/tidwall/sjson"
 
 	"github.com/gin-gonic/gin"
 )
@@ -66,6 +67,21 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			jsonData, err := common.Marshal(convertedRequest)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+
+			if extraFields, ok := c.Get("workspace_image_extra_fields"); ok {
+				if extraMap, ok := extraFields.(map[string]any); ok {
+					for key, value := range extraMap {
+						if strings.TrimSpace(key) == "" {
+							continue
+						}
+						nextJSON, err := sjson.SetBytes(jsonData, key, value)
+						if err != nil {
+							return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+						}
+						jsonData = nextJSON
+					}
+				}
 			}
 
 			// apply param override

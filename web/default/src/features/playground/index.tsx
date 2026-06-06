@@ -103,7 +103,6 @@ export function Playground() {
     parameterEnabled,
     messages,
     models,
-    groups,
     updateMessages,
     setModels,
     setGroups,
@@ -122,6 +121,7 @@ export function Playground() {
   )
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null)
   const [showArchivedSessions, setShowArchivedSessions] = useState(false)
+  const [modelCategory, setModelCategory] = useState('')
   const [sessionsCollapsed, setSessionsCollapsed] = useState(() =>
     typeof window === 'undefined' ? false : window.innerWidth < 768
   )
@@ -245,6 +245,48 @@ export function Playground() {
     () => models.find((model) => model.value === config.model),
     [config.model, models]
   )
+  const modelCategoryOptions = useMemo(() => {
+    const seen = new Set<string>()
+    return models
+      .map((model) => model.category || t('Other'))
+      .filter((category) => {
+        if (!category || seen.has(category)) return false
+        seen.add(category)
+        return true
+      })
+      .map((category) => ({
+        label: category,
+        value: category,
+        ratio: 1,
+      }))
+  }, [models, t])
+  const visibleModels = useMemo(
+    () =>
+      modelCategory
+        ? models.filter((model) => (model.category || t('Other')) === modelCategory)
+        : models,
+    [modelCategory, models, t]
+  )
+
+  useEffect(() => {
+    if (modelCategoryOptions.length === 0) {
+      setModelCategory('')
+      return
+    }
+    if (
+      !modelCategory ||
+      !modelCategoryOptions.some((item) => item.value === modelCategory)
+    ) {
+      setModelCategory(modelCategoryOptions[0].value)
+    }
+  }, [modelCategory, modelCategoryOptions])
+
+  useEffect(() => {
+    if (visibleModels.length === 0) return
+    if (!visibleModels.some((item) => item.value === config.model)) {
+      updateConfig('model', visibleModels[0].value)
+    }
+  }, [config.model, updateConfig, visibleModels])
 
   const loadSessionMessages = useCallback(
     async (session: WorkspaceChatSession) => {
@@ -518,13 +560,13 @@ export function Playground() {
         <div className='mx-auto w-full max-w-4xl px-2 pb-2 md:px-0 md:pb-0'>
           <PlaygroundInput
             disabled={isGenerating}
-            groups={groups}
-            groupValue={config.group}
             isGenerating={isGenerating}
             isModelLoading={isLoadingModels}
             modelValue={config.model}
-            models={models}
-            onGroupChange={(value) => updateConfig('group', value)}
+            models={visibleModels}
+            modelCategories={modelCategoryOptions}
+            modelCategoryValue={modelCategory}
+            onModelCategoryChange={setModelCategory}
             onModelChange={(value) => updateConfig('model', value)}
             onStop={stopGeneration}
             onSubmit={handleSendMessage}

@@ -326,12 +326,56 @@ export const VIDEO_FRAME_RATE_PRESETS = [
   '60fps',
 ]
 
+export const VIDEO_STYLE_PRESETS = [
+  { value: 'cinematic', zh: '电影感' },
+  { value: 'realistic', zh: '写实' },
+  { value: 'anime', zh: '动漫' },
+  { value: 'commercial', zh: '广告片' },
+]
+
 export const VIDEO_QUALITY_PRESETS = [
   { value: 'standard', zh: '标准' },
   { value: 'high', zh: '高质量' },
   { value: 'pro', zh: '专业' },
   { value: 'fast', zh: '快速' },
 ]
+
+export const VIDEO_CAMERA_MOVEMENT_PRESETS = [
+  { value: 'static', zh: '固定镜头' },
+  { value: 'push_in', zh: '推进' },
+  { value: 'pull_out', zh: '拉远' },
+  { value: 'pan_left', zh: '左摇' },
+  { value: 'pan_right', zh: '右摇' },
+  { value: 'tilt_up', zh: '上摇' },
+  { value: 'tilt_down', zh: '下摇' },
+]
+
+export const DEFAULT_IMAGE_FIELD_MAPPINGS = {
+  referenceImage: 'image',
+  size: 'size',
+  ratio: 'aspect_ratio',
+  style: 'style',
+  quality: 'quality',
+  negativePrompt: 'negative_prompt',
+  seed: 'seed',
+}
+
+export const DEFAULT_VIDEO_FIELD_MAPPINGS = {
+  firstFrameImage: 'image',
+  referenceImage: 'reference_image',
+  referenceImages: 'images',
+  lastFrameImage: 'last_frame_image',
+  resolution: 'size',
+  ratio: 'aspect_ratio',
+  duration: 'duration',
+  frameRate: 'frame_rate',
+  style: 'style',
+  quality: 'quality',
+  negativePrompt: 'negative_prompt',
+  audio: 'audio',
+  cameraMovement: 'camera_movement',
+  seed: 'seed',
+}
 
 export const createDefaultCategories = (
   kind: WorkspaceChannelKind
@@ -436,7 +480,10 @@ export const createDefaultChannels = (
         ratioPresets: VIDEO_RATIO_PRESETS,
         durationPresets: VIDEO_DURATION_PRESETS,
         frameRatePresets: VIDEO_FRAME_RATE_PRESETS,
+        stylePresets: VIDEO_STYLE_PRESETS,
         qualityPresets: VIDEO_QUALITY_PRESETS,
+        cameraPresets: VIDEO_CAMERA_MOVEMENT_PRESETS,
+        videoFieldMappings: { ...DEFAULT_VIDEO_FIELD_MAPPINGS },
         maxBatchSize: 1,
         capabilities: enabledCapabilities(capabilityKeys),
         disabled: false,
@@ -496,16 +543,27 @@ export const createEmptyChannel = (
         : kind === 'video'
           ? VIDEO_RATIO_PRESETS
           : undefined,
-    stylePresets: kind === 'image' ? IMAGE_STYLE_PRESETS : undefined,
+    stylePresets:
+      kind === 'image'
+        ? IMAGE_STYLE_PRESETS
+        : kind === 'video'
+          ? VIDEO_STYLE_PRESETS
+          : undefined,
     qualityPresets:
       kind === 'image'
         ? IMAGE_QUALITY_PRESETS
         : kind === 'video'
           ? VIDEO_QUALITY_PRESETS
           : undefined,
+    cameraPresets:
+      kind === 'video' ? VIDEO_CAMERA_MOVEMENT_PRESETS : undefined,
     durationPresets: kind === 'video' ? VIDEO_DURATION_PRESETS : undefined,
     frameRatePresets: kind === 'video' ? VIDEO_FRAME_RATE_PRESETS : undefined,
     maxBatchSize: kind === 'image' ? 4 : kind === 'video' ? 1 : undefined,
+    imageFieldMappings:
+      kind === 'image' ? { ...DEFAULT_IMAGE_FIELD_MAPPINGS } : undefined,
+    videoFieldMappings:
+      kind === 'video' ? { ...DEFAULT_VIDEO_FIELD_MAPPINGS } : undefined,
     capabilities: enabledCapabilities(config.capabilities.map((item) => item.key)),
     disabled: false,
     remark: '',

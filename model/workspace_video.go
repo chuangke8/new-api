@@ -30,6 +30,7 @@ type WorkspaceVideoChannel struct {
 	ModelAlias        string `json:"model_alias" gorm:"type:varchar(255);default:''"`
 	CategoryId        int    `json:"category_id" gorm:"index;not null"`
 	FeatureControls   string `json:"feature_controls" gorm:"type:text"`
+	FieldMappings     string `json:"field_mappings" gorm:"type:text"`
 	MaxBatchSize      int    `json:"max_batch_size" gorm:"default:1"`
 	ResolutionPresets string `json:"resolution_presets" gorm:"type:text"`
 	RatioPresets      string `json:"ratio_presets" gorm:"type:text"`
@@ -37,6 +38,7 @@ type WorkspaceVideoChannel struct {
 	FrameRatePresets  string `json:"frame_rate_presets" gorm:"type:text"`
 	StylePresets      string `json:"style_presets" gorm:"type:text"`
 	QualityPresets    string `json:"quality_presets" gorm:"type:text"`
+	CameraPresets     string `json:"camera_movement_presets" gorm:"type:text"`
 	Disabled          bool   `json:"disabled" gorm:"default:false;index"`
 	Remark            string `json:"remark" gorm:"type:varchar(255);default:''"`
 	CreatedTime       int64  `json:"created_time" gorm:"bigint"`
@@ -69,6 +71,23 @@ type WorkspaceVideoFeatureControls struct {
 	BatchControl         bool `json:"batch_control"`
 }
 
+type WorkspaceVideoFieldMappings struct {
+	FirstFrameImage string `json:"first_frame_image"`
+	ReferenceImage  string `json:"reference_image"`
+	ReferenceImages string `json:"reference_images"`
+	LastFrameImage  string `json:"last_frame_image"`
+	Resolution      string `json:"resolution"`
+	Ratio           string `json:"ratio"`
+	Duration        string `json:"duration"`
+	FrameRate       string `json:"frame_rate"`
+	Style           string `json:"style"`
+	Quality         string `json:"quality"`
+	NegativePrompt  string `json:"negative_prompt"`
+	Audio           string `json:"audio"`
+	CameraMovement  string `json:"camera_movement"`
+	Seed            string `json:"seed"`
+}
+
 type WorkspaceVideoModel struct {
 	Id                int                           `json:"id"`
 	Model             string                        `json:"model"`
@@ -79,6 +98,7 @@ type WorkspaceVideoModel struct {
 	CategoryAlias     string                        `json:"category_alias"`
 	CategoryDisplay   string                        `json:"category_display"`
 	FeatureControls   WorkspaceVideoFeatureControls `json:"feature_controls"`
+	FieldMappings     WorkspaceVideoFieldMappings   `json:"field_mappings"`
 	MaxBatchSize      int                           `json:"max_batch_size"`
 	ResolutionPresets []WorkspaceVideoPreset        `json:"resolution_presets"`
 	RatioPresets      []WorkspaceVideoPreset        `json:"ratio_presets"`
@@ -86,6 +106,7 @@ type WorkspaceVideoModel struct {
 	FrameRatePresets  []WorkspaceVideoPreset        `json:"frame_rate_presets"`
 	StylePresets      []WorkspaceVideoPreset        `json:"style_presets"`
 	QualityPresets    []WorkspaceVideoPreset        `json:"quality_presets"`
+	CameraPresets     []WorkspaceVideoPreset        `json:"camera_movement_presets"`
 }
 
 func defaultWorkspaceVideoFeatureControls() WorkspaceVideoFeatureControls {
@@ -105,6 +126,86 @@ func defaultWorkspaceVideoFeatureControls() WorkspaceVideoFeatureControls {
 		SeedControl:          true,
 		BatchControl:         true,
 	}
+}
+
+func DefaultWorkspaceVideoFieldMappings() WorkspaceVideoFieldMappings {
+	return WorkspaceVideoFieldMappings{
+		FirstFrameImage: "image",
+		ReferenceImage:  "reference_image",
+		ReferenceImages: "images",
+		LastFrameImage:  "last_frame_image",
+		Resolution:      "size",
+		Ratio:           "aspect_ratio",
+		Duration:        "duration",
+		FrameRate:       "frame_rate",
+		Style:           "style",
+		Quality:         "quality",
+		NegativePrompt:  "negative_prompt",
+		Audio:           "audio",
+		CameraMovement:  "camera_movement",
+		Seed:            "seed",
+	}
+}
+
+func NormalizeWorkspaceVideoFieldMappings(mappings WorkspaceVideoFieldMappings) WorkspaceVideoFieldMappings {
+	defaults := DefaultWorkspaceVideoFieldMappings()
+	mappings.FirstFrameImage = strings.TrimSpace(mappings.FirstFrameImage)
+	mappings.ReferenceImage = strings.TrimSpace(mappings.ReferenceImage)
+	mappings.ReferenceImages = strings.TrimSpace(mappings.ReferenceImages)
+	mappings.LastFrameImage = strings.TrimSpace(mappings.LastFrameImage)
+	mappings.Resolution = strings.TrimSpace(mappings.Resolution)
+	mappings.Ratio = strings.TrimSpace(mappings.Ratio)
+	mappings.Duration = strings.TrimSpace(mappings.Duration)
+	mappings.FrameRate = strings.TrimSpace(mappings.FrameRate)
+	mappings.Style = strings.TrimSpace(mappings.Style)
+	mappings.Quality = strings.TrimSpace(mappings.Quality)
+	mappings.NegativePrompt = strings.TrimSpace(mappings.NegativePrompt)
+	mappings.Audio = strings.TrimSpace(mappings.Audio)
+	mappings.CameraMovement = strings.TrimSpace(mappings.CameraMovement)
+	mappings.Seed = strings.TrimSpace(mappings.Seed)
+	if mappings.FirstFrameImage == "" {
+		mappings.FirstFrameImage = defaults.FirstFrameImage
+	}
+	if mappings.ReferenceImage == "" {
+		mappings.ReferenceImage = defaults.ReferenceImage
+	}
+	if mappings.ReferenceImages == "" {
+		mappings.ReferenceImages = defaults.ReferenceImages
+	}
+	if mappings.LastFrameImage == "" {
+		mappings.LastFrameImage = defaults.LastFrameImage
+	}
+	if mappings.Resolution == "" {
+		mappings.Resolution = defaults.Resolution
+	}
+	if mappings.Ratio == "" {
+		mappings.Ratio = defaults.Ratio
+	}
+	if mappings.Duration == "" {
+		mappings.Duration = defaults.Duration
+	}
+	if mappings.FrameRate == "" {
+		mappings.FrameRate = defaults.FrameRate
+	}
+	if mappings.Style == "" {
+		mappings.Style = defaults.Style
+	}
+	if mappings.Quality == "" {
+		mappings.Quality = defaults.Quality
+	}
+	if mappings.NegativePrompt == "" {
+		mappings.NegativePrompt = defaults.NegativePrompt
+	}
+	if mappings.Audio == "" {
+		mappings.Audio = defaults.Audio
+	}
+	if mappings.CameraMovement == "" {
+		mappings.CameraMovement = defaults.CameraMovement
+	}
+	if mappings.Seed == "" {
+		mappings.Seed = defaults.Seed
+	}
+	return mappings
 }
 
 func workspaceVideoPresetsToString(presets []WorkspaceVideoPreset) string {
@@ -153,6 +254,23 @@ func workspaceVideoFeatureControlsFromString(value string) WorkspaceVideoFeature
 	}
 	_ = common.UnmarshalJsonStr(value, &controls)
 	return controls
+}
+
+func workspaceVideoFieldMappingsToString(mappings WorkspaceVideoFieldMappings) string {
+	b, err := common.Marshal(NormalizeWorkspaceVideoFieldMappings(mappings))
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+func workspaceVideoFieldMappingsFromString(value string) WorkspaceVideoFieldMappings {
+	mappings := DefaultWorkspaceVideoFieldMappings()
+	if strings.TrimSpace(value) == "" {
+		return mappings
+	}
+	_ = common.UnmarshalJsonStr(value, &mappings)
+	return NormalizeWorkspaceVideoFieldMappings(mappings)
 }
 
 func EnsureDefaultWorkspaceVideoCategory() (*WorkspaceVideoCategory, error) {
@@ -260,6 +378,9 @@ func CreateWorkspaceVideoChannel(channel *WorkspaceVideoChannel) error {
 	if strings.TrimSpace(channel.FeatureControls) == "" {
 		channel.FeatureControls = workspaceVideoFeatureControlsToString(defaultWorkspaceVideoFeatureControls())
 	}
+	if strings.TrimSpace(channel.FieldMappings) == "" {
+		channel.FieldMappings = workspaceVideoFieldMappingsToString(DefaultWorkspaceVideoFieldMappings())
+	}
 	return DB.Create(channel).Error
 }
 
@@ -270,23 +391,28 @@ func UpdateWorkspaceVideoChannel(channel *WorkspaceVideoChannel) error {
 	if channel.MaxBatchSize <= 0 {
 		channel.MaxBatchSize = 1
 	}
+	if strings.TrimSpace(channel.FieldMappings) == "" {
+		channel.FieldMappings = workspaceVideoFieldMappingsToString(DefaultWorkspaceVideoFieldMappings())
+	}
 	channel.UpdatedTime = common.GetTimestamp()
 	return DB.Model(&WorkspaceVideoChannel{}).Where("id = ?", channel.Id).Updates(map[string]interface{}{
-		"weight":             channel.Weight,
-		"model":              channel.Model,
-		"model_alias":        channel.ModelAlias,
-		"category_id":        channel.CategoryId,
-		"feature_controls":   channel.FeatureControls,
-		"max_batch_size":     channel.MaxBatchSize,
-		"resolution_presets": channel.ResolutionPresets,
-		"ratio_presets":      channel.RatioPresets,
-		"duration_presets":   channel.DurationPresets,
-		"frame_rate_presets": channel.FrameRatePresets,
-		"style_presets":      channel.StylePresets,
-		"quality_presets":    channel.QualityPresets,
-		"disabled":           channel.Disabled,
-		"remark":             channel.Remark,
-		"updated_time":       channel.UpdatedTime,
+		"weight":                  channel.Weight,
+		"model":                   channel.Model,
+		"model_alias":             channel.ModelAlias,
+		"category_id":             channel.CategoryId,
+		"feature_controls":        channel.FeatureControls,
+		"field_mappings":          channel.FieldMappings,
+		"max_batch_size":          channel.MaxBatchSize,
+		"resolution_presets":      channel.ResolutionPresets,
+		"ratio_presets":           channel.RatioPresets,
+		"duration_presets":        channel.DurationPresets,
+		"frame_rate_presets":      channel.FrameRatePresets,
+		"style_presets":           channel.StylePresets,
+		"quality_presets":         channel.QualityPresets,
+		"camera_movement_presets": channel.CameraPresets,
+		"disabled":                channel.Disabled,
+		"remark":                  channel.Remark,
+		"updated_time":            channel.UpdatedTime,
 	}).Error
 }
 
@@ -324,6 +450,7 @@ func workspaceVideoChannelToModel(channel WorkspaceVideoChannel) WorkspaceVideoM
 		CategoryAlias:     categoryAlias,
 		CategoryDisplay:   categoryDisplay,
 		FeatureControls:   workspaceVideoFeatureControlsFromString(channel.FeatureControls),
+		FieldMappings:     workspaceVideoFieldMappingsFromString(channel.FieldMappings),
 		MaxBatchSize:      maxBatchSize,
 		ResolutionPresets: workspaceVideoPresetsFromString(channel.ResolutionPresets),
 		RatioPresets:      workspaceVideoPresetsFromString(channel.RatioPresets),
@@ -331,6 +458,7 @@ func workspaceVideoChannelToModel(channel WorkspaceVideoChannel) WorkspaceVideoM
 		FrameRatePresets:  workspaceVideoPresetsFromString(channel.FrameRatePresets),
 		StylePresets:      workspaceVideoPresetsFromString(channel.StylePresets),
 		QualityPresets:    workspaceVideoPresetsFromString(channel.QualityPresets),
+		CameraPresets:     workspaceVideoPresetsFromString(channel.CameraPresets),
 	}
 }
 

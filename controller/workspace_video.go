@@ -23,6 +23,7 @@ type workspaceVideoChannelRequest struct {
 	ModelAlias        string                              `json:"model_alias"`
 	CategoryId        int                                 `json:"category_id"`
 	FeatureControls   model.WorkspaceVideoFeatureControls `json:"feature_controls"`
+	FieldMappings     model.WorkspaceVideoFieldMappings   `json:"field_mappings"`
 	MaxBatchSize      int                                 `json:"max_batch_size"`
 	ResolutionPresets []model.WorkspaceVideoPreset        `json:"resolution_presets"`
 	RatioPresets      []model.WorkspaceVideoPreset        `json:"ratio_presets"`
@@ -30,6 +31,7 @@ type workspaceVideoChannelRequest struct {
 	FrameRatePresets  []model.WorkspaceVideoPreset        `json:"frame_rate_presets"`
 	StylePresets      []model.WorkspaceVideoPreset        `json:"style_presets"`
 	QualityPresets    []model.WorkspaceVideoPreset        `json:"quality_presets"`
+	CameraPresets     []model.WorkspaceVideoPreset        `json:"camera_movement_presets"`
 	Disabled          bool                                `json:"disabled"`
 	Remark            string                              `json:"remark"`
 }
@@ -111,6 +113,7 @@ func workspaceVideoRequestToChannel(req workspaceVideoChannelRequest) model.Work
 		ModelAlias:        req.ModelAlias,
 		CategoryId:        req.CategoryId,
 		FeatureControls:   workspaceVideoFeatureControlsToString(req.FeatureControls),
+		FieldMappings:     workspaceVideoFieldMappingsToString(req.FieldMappings),
 		MaxBatchSize:      req.MaxBatchSize,
 		ResolutionPresets: workspaceVideoPresetsToString(req.ResolutionPresets),
 		RatioPresets:      workspaceVideoPresetsToString(req.RatioPresets),
@@ -118,6 +121,7 @@ func workspaceVideoRequestToChannel(req workspaceVideoChannelRequest) model.Work
 		FrameRatePresets:  workspaceVideoPresetsToString(req.FrameRatePresets),
 		StylePresets:      workspaceVideoPresetsToString(req.StylePresets),
 		QualityPresets:    workspaceVideoPresetsToString(req.QualityPresets),
+		CameraPresets:     workspaceVideoPresetsToString(req.CameraPresets),
 		Disabled:          req.Disabled,
 		Remark:            req.Remark,
 	}
@@ -135,6 +139,14 @@ func workspaceVideoPresetsToString(presets []model.WorkspaceVideoPreset) string 
 	b, err := common.Marshal(presets)
 	if err != nil {
 		return "[]"
+	}
+	return string(b)
+}
+
+func workspaceVideoFieldMappingsToString(mappings model.WorkspaceVideoFieldMappings) string {
+	b, err := common.Marshal(model.NormalizeWorkspaceVideoFieldMappings(mappings))
+	if err != nil {
+		return "{}"
 	}
 	return string(b)
 }
@@ -286,52 +298,137 @@ func workspaceVideoMetadataNumber(metadata map[string]interface{}, keys ...strin
 	return 0
 }
 
+func workspaceVideoMappedTarget(field string) string {
+	target := strings.TrimSpace(field)
+	target = strings.TrimPrefix(target, "metadata.")
+	return strings.TrimSpace(target)
+}
+
+func workspaceVideoMappedRequestHas(request relaycommon.TaskSubmitReq, fields ...string) bool {
+	for _, field := range fields {
+		target := workspaceVideoMappedTarget(field)
+		if target == "" {
+			continue
+		}
+		switch target {
+		case "image":
+			if strings.TrimSpace(request.Image) != "" {
+				return true
+			}
+		case "images":
+			if len(request.Images) > 0 {
+				return true
+			}
+		case "size":
+			if strings.TrimSpace(request.Size) != "" {
+				return true
+			}
+		case "duration":
+			if request.Duration > 0 {
+				return true
+			}
+		case "seconds":
+			if strings.TrimSpace(request.Seconds) != "" {
+				return true
+			}
+		case "input_reference":
+			if strings.TrimSpace(request.InputReference) != "" {
+				return true
+			}
+		default:
+			if workspaceVideoMetadataHas(request.Metadata, target) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func validateWorkspaceVideoGenerationRequest(request relaycommon.TaskSubmitReq) error {
 	channel, err := model.GetWorkspaceVideoModel(request.Model)
 	if err != nil {
 		return err
 	}
 	controls := channel.FeatureControls
+	mappings := channel.FieldMappings
 	metadata := request.Metadata
+	referenceMappings := []string{mappings.ReferenceImage, mappings.ReferenceImages}
+	firstFrameRequestPresent := workspaceVideoMappedRequestHas(request, mappings.FirstFrameImage)
+	referenceRequestPresent := workspaceVideoMappedRequestHas(request, referenceMappings...)
+	imageOnlyReferenceFallback := controls.ReferenceImageUpload &&
+		strings.TrimSpace(request.Image) != "" &&
+		!workspaceVideoMetadataHas(metadata, "first_frame_image", "last_frame_image") &&
+		len(request.Images) == 0 &&
+		strings.TrimSpace(request.InputReference) == ""
 
-	if request.Image != "" && !controls.FirstFrameImage && !workspaceVideoMetadataHas(metadata, "reference_image") {
+	if !controls.FirstFrameImage &&
+		firstFrameRequestPresent &&
+		!referenceRequestPresent &&
+		!imageOnlyReferenceFallback {
 		return errors.New("selected video channel does not support first frame image")
 	}
 	if !controls.ReferenceImageUpload &&
-		(len(request.Images) > 0 || request.InputReference != "" || workspaceVideoMetadataHas(metadata, "reference_image", "reference_images")) {
+		(len(request.Images) > 0 ||
+			request.InputReference != "" ||
+			workspaceVideoMetadataHas(metadata, "reference_image", "reference_images") ||
+			workspaceVideoMappedRequestHas(request, mappings.ReferenceImage, mappings.ReferenceImages)) {
 		return errors.New("selected video channel does not support reference image upload")
 	}
-	if !controls.LastFrameImage && workspaceVideoMetadataHas(metadata, "last_frame_image") {
+	if !controls.LastFrameImage &&
+		(workspaceVideoMetadataHas(metadata, "last_frame_image") ||
+			workspaceVideoMappedRequestHas(request, mappings.LastFrameImage)) {
 		return errors.New("selected video channel does not support last frame image")
 	}
-	if !controls.DurationControl && (request.Duration > 0 || strings.TrimSpace(request.Seconds) != "") {
+	if !controls.DurationControl &&
+		(request.Duration > 0 ||
+			strings.TrimSpace(request.Seconds) != "" ||
+			workspaceVideoMappedRequestHas(request, mappings.Duration)) {
 		return errors.New("selected video channel does not support duration control")
 	}
-	if !controls.RatioControl && workspaceVideoMetadataHas(metadata, "ratio", "aspect_ratio") {
+	if !controls.RatioControl &&
+		(workspaceVideoMetadataHas(metadata, "ratio", "aspect_ratio", "aspectRatio") ||
+			workspaceVideoMappedRequestHas(request, mappings.Ratio)) {
 		return errors.New("selected video channel does not support ratio control")
 	}
-	if !controls.ResolutionControl && (strings.TrimSpace(request.Size) != "" || workspaceVideoMetadataHas(metadata, "resolution")) {
+	if !controls.ResolutionControl &&
+		(strings.TrimSpace(request.Size) != "" ||
+			workspaceVideoMetadataHas(metadata, "resolution") ||
+			workspaceVideoMappedRequestHas(request, mappings.Resolution)) {
 		return errors.New("selected video channel does not support resolution control")
 	}
-	if !controls.FrameRateControl && workspaceVideoMetadataHas(metadata, "frame_rate", "fps") {
+	if !controls.FrameRateControl &&
+		(workspaceVideoMetadataHas(metadata, "frame_rate", "fps") ||
+			workspaceVideoMappedRequestHas(request, mappings.FrameRate)) {
 		return errors.New("selected video channel does not support frame rate control")
 	}
-	if !controls.StyleControl && workspaceVideoMetadataHas(metadata, "style") {
+	if !controls.StyleControl &&
+		(workspaceVideoMetadataHas(metadata, "style") ||
+			workspaceVideoMappedRequestHas(request, mappings.Style)) {
 		return errors.New("selected video channel does not support style control")
 	}
-	if !controls.QualityControl && workspaceVideoMetadataHas(metadata, "quality", "quality_level") {
+	if !controls.QualityControl &&
+		(workspaceVideoMetadataHas(metadata, "quality", "quality_level") ||
+			workspaceVideoMappedRequestHas(request, mappings.Quality)) {
 		return errors.New("selected video channel does not support quality control")
 	}
-	if !controls.NegativePrompt && workspaceVideoMetadataHas(metadata, "negative_prompt") {
+	if !controls.NegativePrompt &&
+		(workspaceVideoMetadataHas(metadata, "negative_prompt") ||
+			workspaceVideoMappedRequestHas(request, mappings.NegativePrompt)) {
 		return errors.New("selected video channel does not support negative prompt")
 	}
-	if !controls.AudioTrack && workspaceVideoMetadataHas(metadata, "audio", "audio_track") {
+	if !controls.AudioTrack &&
+		(workspaceVideoMetadataHas(metadata, "audio", "audio_track") ||
+			workspaceVideoMappedRequestHas(request, mappings.Audio)) {
 		return errors.New("selected video channel does not support audio track")
 	}
-	if !controls.CameraControl && workspaceVideoMetadataHas(metadata, "camera_control", "camera_movement", "camera") {
+	if !controls.CameraControl &&
+		(workspaceVideoMetadataHas(metadata, "camera_control", "camera_movement", "camera") ||
+			workspaceVideoMappedRequestHas(request, mappings.CameraMovement)) {
 		return errors.New("selected video channel does not support camera control")
 	}
-	if !controls.SeedControl && workspaceVideoMetadataHas(metadata, "seed") {
+	if !controls.SeedControl &&
+		(workspaceVideoMetadataHas(metadata, "seed") ||
+			workspaceVideoMappedRequestHas(request, mappings.Seed)) {
 		return errors.New("selected video channel does not support seed control")
 	}
 

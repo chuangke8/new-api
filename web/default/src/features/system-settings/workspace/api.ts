@@ -77,6 +77,16 @@ export type WorkspaceImageFeatureControlsDto = {
   batch_control: boolean
 }
 
+export type WorkspaceImageFieldMappingsDto = {
+  reference_image: string
+  size: string
+  ratio: string
+  style: string
+  quality: string
+  negative_prompt: string
+  seed: string
+}
+
 export type WorkspaceImageCategoryDto = WorkspaceChatCategoryDto
 
 export type WorkspaceImageChannelDto = {
@@ -86,6 +96,7 @@ export type WorkspaceImageChannelDto = {
   model_alias: string
   category_id: number
   feature_controls: string | WorkspaceImageFeatureControlsDto
+  field_mappings?: string | WorkspaceImageFieldMappingsDto
   max_batch_size: number
   size_presets: string | WorkspaceImagePresetDto[]
   ratio_presets: string | WorkspaceImagePresetDto[]
@@ -108,6 +119,7 @@ export type WorkspaceImageModelDto = {
   category_alias: string
   category_display: string
   feature_controls: WorkspaceImageFeatureControlsDto
+  field_mappings?: WorkspaceImageFieldMappingsDto
   max_batch_size: number
   size_presets: WorkspaceImagePresetDto[]
   ratio_presets: WorkspaceImagePresetDto[]
@@ -134,6 +146,23 @@ export type WorkspaceVideoFeatureControlsDto = {
   batch_control: boolean
 }
 
+export type WorkspaceVideoFieldMappingsDto = {
+  first_frame_image: string
+  reference_image: string
+  reference_images: string
+  last_frame_image: string
+  resolution: string
+  ratio: string
+  duration: string
+  frame_rate: string
+  style: string
+  quality: string
+  negative_prompt: string
+  audio: string
+  camera_movement: string
+  seed: string
+}
+
 export type WorkspaceVideoCategoryDto = WorkspaceChatCategoryDto
 
 export type WorkspaceVideoChannelDto = {
@@ -143,6 +172,7 @@ export type WorkspaceVideoChannelDto = {
   model_alias: string
   category_id: number
   feature_controls: string | WorkspaceVideoFeatureControlsDto
+  field_mappings?: string | WorkspaceVideoFieldMappingsDto
   max_batch_size: number
   resolution_presets: string | WorkspaceVideoPresetDto[]
   ratio_presets: string | WorkspaceVideoPresetDto[]
@@ -150,6 +180,7 @@ export type WorkspaceVideoChannelDto = {
   frame_rate_presets: string | WorkspaceVideoPresetDto[]
   style_presets: string | WorkspaceVideoPresetDto[]
   quality_presets: string | WorkspaceVideoPresetDto[]
+  camera_movement_presets: string | WorkspaceVideoPresetDto[]
   disabled: boolean
   remark: string
   category?: WorkspaceVideoCategoryDto
@@ -167,6 +198,7 @@ export type WorkspaceVideoModelDto = {
   category_alias: string
   category_display: string
   feature_controls: WorkspaceVideoFeatureControlsDto
+  field_mappings?: WorkspaceVideoFieldMappingsDto
   max_batch_size: number
   resolution_presets: WorkspaceVideoPresetDto[]
   ratio_presets: WorkspaceVideoPresetDto[]
@@ -174,6 +206,7 @@ export type WorkspaceVideoModelDto = {
   frame_rate_presets: WorkspaceVideoPresetDto[]
   style_presets: WorkspaceVideoPresetDto[]
   quality_presets: WorkspaceVideoPresetDto[]
+  camera_movement_presets: WorkspaceVideoPresetDto[]
 }
 
 export type WorkspaceImageGenerationRequest = {
@@ -200,6 +233,11 @@ export type WorkspaceImageGenerationResponse = {
   created?: number
   data?: WorkspaceImageGenerationData[]
   metadata?: unknown
+}
+
+export type WorkspaceGenerationEstimateData = {
+  quota: number
+  other_ratios?: Record<string, number>
 }
 
 export type WorkspaceVideoGenerationRequest = {
@@ -424,6 +462,17 @@ export async function generateWorkspaceImage(
   return res.data
 }
 
+export async function estimateWorkspaceImage(
+  data: WorkspaceImageGenerationRequest
+) {
+  const res = await api.post<ApiResponse<WorkspaceGenerationEstimateData>>(
+    '/api/workspace/image/estimate',
+    data,
+    { skipErrorHandler: true }
+  )
+  return res.data
+}
+
 export async function getWorkspaceVideoCategories() {
   const res = await api.get<ApiResponse<WorkspaceVideoCategoryDto[]>>(
     '/api/workspace/video/admin/categories'
@@ -513,6 +562,17 @@ export async function generateWorkspaceVideo(
 ) {
   const res = await api.post<WorkspaceVideoGenerationResponse>(
     '/api/workspace/video/generations',
+    data,
+    { skipErrorHandler: true }
+  )
+  return res.data
+}
+
+export async function estimateWorkspaceVideo(
+  data: WorkspaceVideoGenerationRequest
+) {
+  const res = await api.post<ApiResponse<WorkspaceGenerationEstimateData>>(
+    '/api/workspace/video/estimate',
     data,
     { skipErrorHandler: true }
   )

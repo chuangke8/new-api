@@ -389,6 +389,7 @@ func SetApiRouter(router *gin.Engine) {
 		workspaceImageRoute.Use(middleware.UserAuth())
 		{
 			workspaceImageRoute.GET("/models", controller.GetWorkspaceImageModels)
+			workspaceImageRoute.POST("/estimate", controller.EstimateWorkspaceImageGeneration)
 			workspaceImageRoute.POST("/generations", controller.GenerateWorkspaceImage)
 		}
 
@@ -410,6 +411,7 @@ func SetApiRouter(router *gin.Engine) {
 		workspaceVideoRoute.Use(middleware.UserAuth())
 		{
 			workspaceVideoRoute.GET("/models", controller.GetWorkspaceVideoModels)
+			workspaceVideoRoute.POST("/estimate", controller.EstimateWorkspaceVideoGeneration)
 			workspaceVideoRoute.POST("/generations", controller.GenerateWorkspaceVideo)
 			workspaceVideoRoute.GET("/generations/:task_id", controller.GetWorkspaceVideoTask)
 		}

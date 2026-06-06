@@ -92,7 +92,10 @@ export async function getWorkspaceChatModels(): Promise<ModelOption[]> {
     label: model.display_name || model.model_alias || model.model,
     value: model.model,
     category:
-      model.category_display || model.category_alias || model.category_name,
+      model.category_display ||
+      model.category_alias ||
+      model.category_name ||
+      'Chat',
     visionEnabled: model.vision_enabled,
     fileUploadEnabled: model.file_upload_enabled,
     webSearchEnabled: model.web_search_enabled,

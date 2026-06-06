@@ -44,7 +44,7 @@ import {
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
-import { ModelGroupSelector } from '@/components/model-group-selector'
+import { GroupSelector, ModelSelector } from '@/components/model-group-selector'
 import type { ModelOption, GroupOption } from '../types'
 
 interface PlaygroundInputProps {
@@ -56,9 +56,9 @@ interface PlaygroundInputProps {
   modelValue: string
   onModelChange: (value: string) => void
   isModelLoading?: boolean
-  groups: GroupOption[]
-  groupValue: string
-  onGroupChange: (value: string) => void
+  modelCategories: GroupOption[]
+  modelCategoryValue: string
+  onModelCategoryChange: (value: string) => void
   capabilities?: {
     visionEnabled?: boolean
     fileUploadEnabled?: boolean
@@ -84,9 +84,9 @@ export function PlaygroundInput({
   modelValue,
   onModelChange,
   isModelLoading = false,
-  groups,
-  groupValue,
-  onGroupChange,
+  modelCategories,
+  modelCategoryValue,
+  onModelCategoryChange,
   capabilities,
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
@@ -94,7 +94,8 @@ export function PlaygroundInput({
 
   const isModelSelectDisabled =
     disabled || isModelLoading || models.length === 0
-  const isGroupSelectDisabled = disabled || groups.length === 0
+  const isModelCategorySelectDisabled =
+    disabled || isModelLoading || modelCategories.length === 0
 
   const handleSubmit = (message: PromptInputMessage) => {
     if ((!message.text?.trim() && !message.files?.length) || disabled) return
@@ -139,15 +140,20 @@ export function PlaygroundInput({
           />
 
           <div className='ml-auto flex min-w-0 items-center gap-1.5 md:gap-2'>
-            <ModelGroupSelector
-              selectedModel={modelValue}
-              models={models}
-              onModelChange={onModelChange}
-              selectedGroup={groupValue}
-              groups={groups}
-              onGroupChange={onGroupChange}
-              disabled={isModelSelectDisabled || isGroupSelectDisabled}
-            />
+            <div className='flex items-center gap-2'>
+              <GroupSelector
+                selectedGroup={modelCategoryValue}
+                groups={modelCategories}
+                onGroupChange={onModelCategoryChange}
+                disabled={isModelCategorySelectDisabled}
+              />
+              <ModelSelector
+                selectedModel={modelValue}
+                models={models}
+                onModelChange={onModelChange}
+                disabled={isModelSelectDisabled}
+              />
+            </div>
 
             <WorkbenchSubmitButton
               disabled={disabled}

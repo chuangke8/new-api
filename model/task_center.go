@@ -1167,6 +1167,9 @@ func upsertTaskCenter(record *TaskCenter, localizeAssets bool) error {
 		existingID := existing.ID
 		remark := existing.Remark
 		rawRequest := existing.RawRequest
+		if existing.Status == "cancelled" && record.Status != "cancelled" {
+			return nil
+		}
 		previousDetail := parseTaskCenterDetail(existing.Detail)
 		existing = *record
 		existing.ID = existingID
@@ -1314,6 +1317,43 @@ func GetTaskCenterByID(id int64, userID int, admin bool) (*TaskCenter, error) {
 		return nil, err
 	}
 	return &record, nil
+}
+
+func StopTaskCenterByID(id int64, userID int, admin bool, reason string) (*TaskCenter, bool, error) {
+	if id <= 0 {
+		return nil, false, gorm.ErrRecordNotFound
+	}
+	var record TaskCenter
+	err := DB.Where("id = ?", id).First(&record).Error
+	if err != nil {
+		return nil, false, err
+	}
+	if !admin && record.UserID != userID {
+		return nil, false, gorm.ErrRecordNotFound
+	}
+	now := time.Now().Unix()
+	result := DB.Model(&TaskCenter{}).
+		Where("id = ?", record.ID).
+		Where("status IN ?", []string{"pending", "running"}).
+		Updates(map[string]any{
+			"status":        "cancelled",
+			"completed_at":  now,
+			"error_message": reason,
+			"error_detail":  reason,
+			"updated_at":    now,
+		})
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return &record, false, nil
+	}
+	record.Status = "cancelled"
+	record.CompletedAt = now
+	record.ErrorMessage = reason
+	record.ErrorDetail = reason
+	record.UpdatedAt = now
+	return &record, true, nil
 }
 
 func UpdateTaskCenterRemark(id int64, userID int, admin bool, remark string) error {

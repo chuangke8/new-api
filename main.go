@@ -148,6 +148,9 @@ func main() {
 		model.InitBatchUpdater()
 	}
 
+	// Workspace image generation job worker
+	controller.StartWorkspaceImageJobWorker()
+
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
 			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))

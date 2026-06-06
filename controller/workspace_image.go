@@ -2,11 +2,14 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -17,8 +20,19 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
+
+const (
+	workspaceImageJobWorkerInterval       = 2 * time.Second
+	workspaceImageJobWorkerBatchSize      = 4
+	workspaceImageJobRunningStaleDuration = 30 * time.Minute
+)
+
+var startWorkspaceImageJobWorkerOnce sync.Once
+var workspaceImageRunningJobs sync.Map
+var workspaceImageRunningJobCancels sync.Map
 
 type workspaceImageResponseRecorder struct {
 	gin.ResponseWriter
@@ -367,6 +381,10 @@ func newWorkspaceImageTaskID() string {
 	return "img_" + key
 }
 
+func newWorkspaceImageRequestID() string {
+	return common.GetTimeString() + common.GetRandomString(16)
+}
+
 func newAPIImageTaskID() string {
 	key, err := common.GenerateRandomCharsKey(32)
 	if err != nil || key == "" {
@@ -437,6 +455,218 @@ func recordWorkspaceImageTaskCenter(c *gin.Context, taskID string, userID int, r
 	)
 	if err := model.UpsertTaskCenter(record); err != nil {
 		logger.LogError(c, "failed to record workspace image task center: "+err.Error())
+	}
+}
+
+func recordWorkspaceImageSubmittedTaskCenter(c *gin.Context, taskID string, userID int, request dto.ImageRequest, rawRequest string, submittedAt int64) {
+	record := model.BuildTaskCenterFromWorkspaceImage(
+		taskID,
+		userID,
+		request,
+		rawRequest,
+		"",
+		nil,
+		"submitted",
+		submittedAt,
+		0,
+		0,
+		"",
+		"",
+		nil,
+	)
+	if err := model.UpsertTaskCenter(record); err != nil {
+		logger.LogError(c, "failed to record submitted workspace image task center: "+err.Error())
+	}
+}
+
+func workspaceImageResponseStatus(c *gin.Context) int {
+	if c == nil || c.Writer == nil {
+		return http.StatusInternalServerError
+	}
+	status := c.Writer.Status()
+	if status == 0 {
+		return http.StatusOK
+	}
+	return status
+}
+
+func workspaceImageErrorBody(err error) string {
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	body, marshalErr := common.Marshal(gin.H{
+		"error": gin.H{
+			"message": message,
+		},
+	})
+	if marshalErr != nil {
+		return message
+	}
+	return string(body)
+}
+
+func newWorkspaceImageBackgroundContext() (*gin.Context, *httptest.ResponseRecorder) {
+	ginRecorder := httptest.NewRecorder()
+	bgCtx, _ := gin.CreateTestContext(ginRecorder)
+	return bgCtx, ginRecorder
+}
+
+func runWorkspaceImageGenerationJob(taskID string, userID int, userGroup string, request dto.ImageRequest, rawRequest string, mappedBody []byte, submittedAt int64, extraFields map[string]any, requestContext context.Context) {
+	bgCtx, ginRecorder := newWorkspaceImageBackgroundContext()
+	defer func() {
+		if panicValue := recover(); panicValue != nil {
+			err := fmt.Errorf("workspace image generation panic: %v", panicValue)
+			recordWorkspaceImageTaskCenter(bgCtx, taskID, userID, request, rawRequest, workspaceImageErrorBody(err), submittedAt, http.StatusInternalServerError)
+		}
+	}()
+	storage, err := common.CreateBodyStorage(mappedBody)
+	if err != nil {
+		recordWorkspaceImageTaskCenter(bgCtx, taskID, userID, request, rawRequest, workspaceImageErrorBody(err), submittedAt, http.StatusInternalServerError)
+		return
+	}
+	defer storage.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/pg/images/generations", common.ReaderOnly(storage)).WithContext(requestContext)
+	req.Header.Set("Content-Type", "application/json")
+	req.ContentLength = int64(len(mappedBody))
+	bgCtx.Request = req
+	bgCtx.Set(common.KeyBodyStorage, storage)
+
+	requestID := newWorkspaceImageRequestID()
+	bgCtx.Set(common.RequestIdKey, requestID)
+	bgCtx.Header(common.RequestIdKey, requestID)
+
+	bgCtx.Set("relay_mode", relayconstant.RelayModeImagesGenerations)
+	bgCtx.Request.URL.Path = "/pg/images/generations"
+	common.SetContextKey(bgCtx, constant.ContextKeyUsingGroup, userGroup)
+	if len(extraFields) > 0 {
+		bgCtx.Set("workspace_image_extra_fields", extraFields)
+	}
+
+	userCache, err := model.GetUserCache(userID)
+	if err != nil {
+		recordWorkspaceImageTaskCenter(bgCtx, taskID, userID, request, rawRequest, workspaceImageErrorBody(err), submittedAt, http.StatusInternalServerError)
+		return
+	}
+	userCache.WriteContext(bgCtx)
+	tempToken := &model.Token{
+		UserId: userID,
+		Name:   fmt.Sprintf("workspace-image-%s", userGroup),
+		Group:  userGroup,
+	}
+	_ = middleware.SetupContextForToken(bgCtx, tempToken)
+
+	middleware.Distribute()(bgCtx)
+	if bgCtx.IsAborted() {
+		recordWorkspaceImageTaskCenter(bgCtx, taskID, userID, request, rawRequest, ginRecorder.Body.String(), submittedAt, workspaceImageResponseStatus(bgCtx))
+		return
+	}
+
+	Relay(bgCtx, types.RelayFormatOpenAIImage)
+	recordWorkspaceImageTaskCenter(bgCtx, taskID, userID, request, rawRequest, ginRecorder.Body.String(), submittedAt, workspaceImageResponseStatus(bgCtx))
+}
+
+func runWorkspaceImageJob(job model.WorkspaceImageJob) {
+	if _, loaded := workspaceImageRunningJobs.LoadOrStore(job.TaskID, struct{}{}); loaded {
+		return
+	}
+	defer workspaceImageRunningJobs.Delete(job.TaskID)
+
+	staleBefore := time.Now().Add(-workspaceImageJobRunningStaleDuration).Unix()
+	claimed, err := model.ClaimWorkspaceImageJob(job.TaskID, staleBefore)
+	if err != nil {
+		common.SysLog("failed to claim workspace image job: " + err.Error())
+		return
+	}
+	if !claimed {
+		return
+	}
+	jobContext, cancelJob := context.WithCancel(context.Background())
+	workspaceImageRunningJobCancels.Store(job.TaskID, cancelJob)
+	defer func() {
+		cancelJob()
+		workspaceImageRunningJobCancels.Delete(job.TaskID)
+	}()
+	stopHeartbeat := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(workspaceImageJobWorkerInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				_ = model.TouchWorkspaceImageJob(job.TaskID)
+			case <-stopHeartbeat:
+				return
+			}
+		}
+	}()
+	defer close(stopHeartbeat)
+
+	var imageRequest dto.ImageRequest
+	if err := common.UnmarshalJsonStr(job.RequestBody, &imageRequest); err != nil {
+		_ = model.FinishWorkspaceImageJob(job.TaskID, model.WorkspaceImageJobStatusFailed, err.Error())
+		bgCtx, _ := newWorkspaceImageBackgroundContext()
+		recordWorkspaceImageTaskCenter(bgCtx, job.TaskID, job.UserID, imageRequest, job.RawRequest, workspaceImageErrorBody(err), job.SubmittedAt, http.StatusBadRequest)
+		return
+	}
+	extraFields := map[string]any{}
+	if strings.TrimSpace(job.ExtraFields) != "" {
+		_ = common.UnmarshalJsonStr(job.ExtraFields, &extraFields)
+	}
+
+	runWorkspaceImageGenerationJob(job.TaskID, job.UserID, job.UserGroup, imageRequest, job.RawRequest, []byte(job.RequestBody), job.SubmittedAt, extraFields, jobContext)
+
+	var record model.TaskCenter
+	if err := model.DB.Where("task_id = ?", job.TaskID).First(&record).Error; err != nil {
+		_ = model.FinishWorkspaceImageJob(job.TaskID, model.WorkspaceImageJobStatusFailed, err.Error())
+		return
+	}
+	if record.Status == "cancelled" {
+		_ = model.FinishWorkspaceImageJob(job.TaskID, model.WorkspaceImageJobStatusCancelled, record.ErrorMessage)
+		return
+	}
+	if record.Status == "failed" {
+		_ = model.FinishWorkspaceImageJob(job.TaskID, model.WorkspaceImageJobStatusFailed, record.ErrorMessage)
+		return
+	}
+	_ = model.FinishWorkspaceImageJob(job.TaskID, model.WorkspaceImageJobStatusSucceeded, "")
+}
+
+func processWorkspaceImageJobs() {
+	staleBefore := time.Now().Add(-workspaceImageJobRunningStaleDuration).Unix()
+	jobs, err := model.ListRunnableWorkspaceImageJobs(workspaceImageJobWorkerBatchSize, staleBefore)
+	if err != nil {
+		common.SysLog("failed to list workspace image jobs: " + err.Error())
+		return
+	}
+	for _, job := range jobs {
+		job := job
+		gopool.Go(func() {
+			runWorkspaceImageJob(job)
+		})
+	}
+}
+
+func StartWorkspaceImageJobWorker() {
+	startWorkspaceImageJobWorkerOnce.Do(func() {
+		go func() {
+			common.SysLog("workspace image job worker started")
+			processWorkspaceImageJobs()
+			ticker := time.NewTicker(workspaceImageJobWorkerInterval)
+			defer ticker.Stop()
+			for range ticker.C {
+				processWorkspaceImageJobs()
+			}
+		}()
+	})
+}
+
+func CancelRunningWorkspaceImageJob(taskID string) {
+	if value, ok := workspaceImageRunningJobCancels.Load(taskID); ok {
+		if cancel, ok := value.(context.CancelFunc); ok {
+			cancel()
+		}
 	}
 }
 
@@ -531,15 +761,6 @@ func GenerateWorkspaceImage(c *gin.Context) {
 		return
 	}
 	applyWorkspaceImageMappedFields(c, &imageRequest, rawRequest, imageChannel)
-	if mappedBody, err := common.Marshal(imageRequest); err == nil {
-		if storage, storageErr := common.CreateBodyStorage(mappedBody); storageErr == nil {
-			c.Set(common.KeyBodyStorage, storage)
-			c.Request.Body = io.NopCloser(storage)
-		}
-	}
-
-	c.Set("relay_mode", relayconstant.RelayModeImagesGenerations)
-	c.Request.URL.Path = "/pg/images/generations"
 
 	userId := c.GetInt("id")
 	userCache, err := model.GetUserCache(userId)
@@ -547,30 +768,52 @@ func GenerateWorkspaceImage(c *gin.Context) {
 		newAPIError = types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		return
 	}
-	userCache.WriteContext(c)
-	common.SetContextKey(c, constant.ContextKeyUsingGroup, userCache.Group)
-
-	tempToken := &model.Token{
-		UserId: userId,
-		Name:   fmt.Sprintf("workspace-image-%s", userCache.Group),
-		Group:  userCache.Group,
-	}
-	_ = middleware.SetupContextForToken(c, tempToken)
 
 	taskID := newWorkspaceImageTaskID()
 	submittedAt := time.Now().Unix()
-	recorder := &workspaceImageResponseRecorder{
-		ResponseWriter: c.Writer,
-		body:           bytes.NewBuffer(nil),
+	mappedBody, err := common.Marshal(imageRequest)
+	if err != nil {
+		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		return
 	}
-	c.Writer = recorder
-
-	middleware.Distribute()(c)
-	if c.IsAborted() {
-		recordWorkspaceImageTaskCenter(c, taskID, userId, imageRequest, rawRequest, recorder.body.String(), submittedAt, recorder.Status())
+	extraFields := map[string]any{}
+	if value, ok := c.Get("workspace_image_extra_fields"); ok {
+		if extraMap, ok := value.(map[string]any); ok {
+			for key, val := range extraMap {
+				extraFields[key] = val
+			}
+		}
+	}
+	extraFieldsJSON := ""
+	if len(extraFields) > 0 {
+		if b, err := common.Marshal(extraFields); err == nil {
+			extraFieldsJSON = string(b)
+		}
+	}
+	recordWorkspaceImageSubmittedTaskCenter(c, taskID, userId, imageRequest, rawRequest, submittedAt)
+	if err := model.CreateWorkspaceImageJob(&model.WorkspaceImageJob{
+		TaskID:      taskID,
+		UserID:      userId,
+		UserGroup:   userCache.Group,
+		RequestBody: string(mappedBody),
+		RawRequest:  rawRequest,
+		ExtraFields: extraFieldsJSON,
+		SubmittedAt: submittedAt,
+	}); err != nil {
+		recordWorkspaceImageTaskCenter(c, taskID, userId, imageRequest, rawRequest, workspaceImageErrorBody(err), submittedAt, http.StatusInternalServerError)
+		newAPIError = types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		return
 	}
 
-	Relay(c, types.RelayFormatOpenAIImage)
-	recordWorkspaceImageTaskCenter(c, taskID, userId, imageRequest, rawRequest, recorder.body.String(), submittedAt, recorder.Status())
+	c.JSON(http.StatusAccepted, gin.H{
+		"id":      taskID,
+		"task_id": taskID,
+		"status":  "submitted",
+		"created": submittedAt,
+		"data":    []any{},
+		"metadata": gin.H{
+			"async":  true,
+			"source": "workspace_image",
+		},
+	})
 }

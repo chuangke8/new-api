@@ -333,7 +333,9 @@ func SetApiRouter(router *gin.Engine) {
 		taskCenterRoute.Use(middleware.UserAuth())
 		{
 			taskCenterRoute.GET("/", controller.GetTaskCenter)
+			taskCenterRoute.POST("/batch/stop", controller.BatchStopTaskCenter)
 			taskCenterRoute.GET("/:id", controller.GetTaskCenterDetail)
+			taskCenterRoute.POST("/:id/stop", controller.StopTaskCenter)
 			taskCenterRoute.PATCH("/:id/remark", controller.UpdateTaskCenterRemark)
 		}
 		apiRouter.GET("/task-center-assets/*path", controller.GetTaskCenterAsset)

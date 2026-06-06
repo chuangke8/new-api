@@ -547,6 +547,22 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
   const [batchProgress, setBatchProgress] =
     useState<BatchProgressState>(initialBatchProgress)
   const [items, setItems] = useState<GeneratedItem[]>([])
+  const hasPendingImageItems = items.some(
+    (item) =>
+      item.kind === 'image' &&
+      item.taskId &&
+      !normalizeImageSource(item) &&
+      item.status !== 'failed' &&
+      item.status !== 'ready'
+  )
+  const hasPendingVideoItems = items.some(
+    (item) =>
+      item.kind === 'video' &&
+      item.taskId &&
+      !item.videoUrl &&
+      item.status !== 'failed' &&
+      item.status !== 'ready'
+  )
   const effectiveModel = model || fallbackModel
   const selectedModelLabel =
     modelOptions.find((item) => item.value === effectiveModel)?.label || ''
@@ -704,7 +720,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
       return response.data.items || []
     },
     enabled: isImage,
-    refetchInterval: isImage && isGenerating ? 5000 : false,
+    refetchInterval: isImage && (isGenerating || hasPendingImageItems) ? 5000 : false,
   })
   const videoHistoryQuery = useQuery({
     queryKey: ['workspace-video-generation-history'],
@@ -719,7 +735,7 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
       return response.data.items || []
     },
     enabled: !isImage,
-    refetchInterval: !isImage && isGenerating ? 5000 : false,
+    refetchInterval: !isImage && (isGenerating || hasPendingVideoItems) ? 5000 : false,
   })
 
   const updateBatchProgress = (patch: Partial<BatchProgressState>) => {
@@ -945,6 +961,59 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
     videoFeatureControls.last_frame_image,
     videoFeatureControls.reference_image_upload,
   ])
+
+  useEffect(() => {
+    if (!isImage) return
+    const records = imageHistoryQuery.data || []
+    if (records.length === 0) return
+    const recordByTaskId = new Map<string, TaskCenterRecord>()
+    for (const record of records) {
+      const key = record.task_id || record.source_id
+      if (key) recordByTaskId.set(key, record)
+    }
+    setItems((current) =>
+      current.map((item) => {
+        if (
+          item.kind !== 'image' ||
+          !item.taskId ||
+          item.status === 'ready' ||
+          item.status === 'failed'
+        ) {
+          return item
+        }
+        const record = recordByTaskId.get(item.taskId)
+        if (!record) return item
+        const detail = parseDetail(record.detail)
+        const imageUrl = detail.images?.[0] || ''
+        const status = String(record.status || '').toLowerCase()
+        const revisedPrompts = Array.isArray(detail.metadata?.revised_prompts)
+          ? detail.metadata.revised_prompts
+          : []
+        const revisedPrompt =
+          typeof revisedPrompts[0] === 'string'
+            ? revisedPrompts[0]
+            : item.revisedPrompt
+        if (status === 'success' || status === 'succeeded' || imageUrl) {
+          return {
+            ...item,
+            status: 'ready',
+            imageUrl: imageUrl || item.imageUrl,
+            revisedPrompt,
+          }
+        }
+        if (status === 'failure' || status === 'failed') {
+          return { ...item, status: 'failed' }
+        }
+        return {
+          ...item,
+          status:
+            status === 'running' || status === 'processing'
+              ? 'processing'
+              : 'queued',
+        }
+      })
+    )
+  }, [imageHistoryQuery.data, isImage])
 
   useEffect(() => {
     if (isImage) return
@@ -1315,24 +1384,39 @@ function WorkspaceGeneration({ kind }: { kind: GenerationKind }) {
           try {
             const response = await generateWorkspaceImage(buildImagePayload())
             const resultData = Array.isArray(response.data) ? response.data : []
-            if (resultData.length === 0) {
-              throw new Error(t('No generation results returned'))
-            }
-            nextItems.push(
-              ...resultData.map((item, resultIndex) => ({
-                id: `${kind}-${Date.now()}-${index}-${resultIndex}`,
+            const taskId = response.task_id || response.id || ''
+            if (resultData.length > 0) {
+              nextItems.push(
+                ...resultData.map((item, resultIndex) => ({
+                  id: `${kind}-${Date.now()}-${index}-${resultIndex}`,
+                  kind,
+                  prompt: submittedPrompt,
+                  revisedPrompt: item.revised_prompt,
+                  model: modelLabel,
+                  status: 'ready' as const,
+                  imageUrl: item.url,
+                  b64Json: item.b64_json,
+                  size: submittedSize,
+                  ratio: submittedRatio,
+                  quality: submittedQuality,
+                }))
+              )
+            } else {
+              if (!taskId) {
+                throw new Error(t('No generation results returned'))
+              }
+              nextItems.push({
+                id: `${kind}-${Date.now()}-${index}`,
+                taskId,
                 kind,
                 prompt: submittedPrompt,
-                revisedPrompt: item.revised_prompt,
                 model: modelLabel,
-                status: 'ready' as const,
-                imageUrl: item.url,
-                b64Json: item.b64_json,
+                status: 'queued' as const,
                 size: submittedSize,
                 ratio: submittedRatio,
                 quality: submittedQuality,
-              }))
-            )
+              })
+            }
             submittedCount += 1
             updateBatchProgress({
               completed: submittedCount,

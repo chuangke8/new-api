@@ -93,6 +93,20 @@ export type TaskCenterPage = {
   items: TaskCenterRecord[]
 }
 
+export type TaskCenterStopResult = {
+  id: number
+  task_id: string
+  stopped: boolean
+  refunded_quota: number
+  message: string
+}
+
+export type TaskCenterBatchStopResult = {
+  items: TaskCenterStopResult[]
+  stopped_count: number
+  refunded_quota: number
+}
+
 export type ApiResponse<T> = {
   success: boolean
   message: string

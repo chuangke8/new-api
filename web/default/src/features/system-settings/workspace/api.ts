@@ -230,6 +230,9 @@ export type WorkspaceImageGenerationData = {
 }
 
 export type WorkspaceImageGenerationResponse = {
+  id?: string
+  task_id?: string
+  status?: string
   created?: number
   data?: WorkspaceImageGenerationData[]
   metadata?: unknown

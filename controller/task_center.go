@@ -1,12 +1,17 @@
 package controller
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -37,6 +42,18 @@ type taskCenterResponse struct {
 
 type updateTaskCenterRemarkRequest struct {
 	Remark string `json:"remark"`
+}
+
+type stopTaskCenterBatchRequest struct {
+	IDs []int64 `json:"ids"`
+}
+
+type stopTaskCenterResult struct {
+	ID            int64  `json:"id"`
+	TaskID        string `json:"task_id"`
+	Stopped       bool   `json:"stopped"`
+	RefundedQuota int    `json:"refunded_quota"`
+	Message       string `json:"message"`
 }
 
 func parseTaskCenterQuery(c *gin.Context, admin bool) model.TaskCenterQueryParams {
@@ -116,6 +133,133 @@ func taskCenterToResponse(record *model.TaskCenter, includeAdminFields bool) tas
 	return response
 }
 
+func taskCenterCanStop(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "pending", "running":
+		return true
+	default:
+		return false
+	}
+}
+
+func taskStatusCanStop(status model.TaskStatus) bool {
+	switch status {
+	case model.TaskStatusNotStart, model.TaskStatusSubmitted, model.TaskStatusQueued, model.TaskStatusInProgress:
+		return true
+	default:
+		return false
+	}
+}
+
+func refundStoppedTaskCenter(c *gin.Context, record *model.TaskCenter, reason string) (int, error) {
+	if record == nil || record.Cost <= 0 {
+		return 0, nil
+	}
+	if record.Source == model.TaskCenterSourceTask || record.Source == model.TaskCenterSourceWorkspaceVideo {
+		task, exists, err := model.GetByOnlyTaskId(record.TaskID)
+		if err != nil {
+			return 0, err
+		}
+		if exists && task != nil {
+			before := task.Status
+			if !taskStatusCanStop(before) {
+				return 0, nil
+			}
+			task.Status = model.TaskStatusFailure
+			task.Progress = "100%"
+			task.FinishTime = time.Now().Unix()
+			task.FailReason = reason
+			updated, err := task.UpdateWithStatus(before)
+			if err != nil {
+				return 0, err
+			}
+			if updated {
+				service.RefundTaskQuota(context.Background(), task, reason)
+				return task.Quota, nil
+			}
+			return 0, nil
+		}
+	}
+	if err := model.IncreaseUserQuota(record.UserID, record.Cost, false); err != nil {
+		return 0, err
+	}
+	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		UserId:    record.UserID,
+		LogType:   model.LogTypeRefund,
+		Content:   reason,
+		ModelName: record.Model,
+		Quota:     record.Cost,
+		Other: map[string]interface{}{
+			"task_id":        record.TaskID,
+			"task_center_id": record.ID,
+			"reason":         reason,
+			"source":         record.Source,
+		},
+	})
+	return record.Cost, nil
+}
+
+func stopTaskCenter(c *gin.Context, id int64) stopTaskCenterResult {
+	const reason = "管理员手动停止任务并退款"
+	result := stopTaskCenterResult{ID: id}
+	if !isTaskCenterAdmin(c) {
+		result.Message = "permission denied"
+		return result
+	}
+	currentRecord, err := model.GetTaskCenterByID(id, c.GetInt("id"), true)
+	if err != nil {
+		result.Message = err.Error()
+		return result
+	}
+	result.TaskID = currentRecord.TaskID
+	if !taskCenterCanStop(currentRecord.Status) {
+		result.Message = "task is not stoppable"
+		return result
+	}
+	if currentRecord.Source == model.TaskCenterSourceTask || currentRecord.Source == model.TaskCenterSourceWorkspaceVideo {
+		task, exists, err := model.GetByOnlyTaskId(currentRecord.TaskID)
+		if err != nil {
+			result.Message = err.Error()
+			return result
+		}
+		if exists && task != nil && !taskStatusCanStop(task.Status) {
+			result.Message = "task is not stoppable"
+			return result
+		}
+	}
+	record, stopped, err := model.StopTaskCenterByID(id, c.GetInt("id"), true, reason)
+	if err != nil {
+		result.Message = err.Error()
+		return result
+	}
+	if record != nil {
+		result.TaskID = record.TaskID
+	}
+	if !stopped {
+		if record != nil && !taskCenterCanStop(record.Status) {
+			result.Message = "task is not stoppable"
+		} else {
+			result.Message = "task was not stopped"
+		}
+		return result
+	}
+	if record.Source == model.TaskCenterSourceWorkspaceImage {
+		CancelRunningWorkspaceImageJob(record.TaskID)
+		if err := model.CancelWorkspaceImageJob(record.TaskID, reason); err != nil {
+			logger.LogWarn(c, fmt.Sprintf("failed to cancel workspace image job %s: %s", record.TaskID, err.Error()))
+		}
+	}
+	refunded, err := refundStoppedTaskCenter(c, record, reason)
+	if err != nil {
+		result.Message = "stopped but refund failed: " + err.Error()
+		return result
+	}
+	result.Stopped = true
+	result.RefundedQuota = refunded
+	result.Message = "stopped"
+	return result
+}
+
 func GetTaskCenterAsset(c *gin.Context) {
 	relativePath := strings.TrimPrefix(c.Param("path"), "/")
 	parts := strings.Split(relativePath, "/")
@@ -166,6 +310,80 @@ func GetTaskCenterDetail(c *gin.Context) {
 	}
 	_ = model.NormalizeTaskCenterDetail(record)
 	common.ApiSuccess(c, taskCenterToResponse(record, admin))
+}
+
+func StopTaskCenter(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "invalid task center id",
+		})
+		return
+	}
+	result := stopTaskCenter(c, id)
+	if !result.Stopped {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": result.Message,
+			"data":    result,
+		})
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
+func BatchStopTaskCenter(c *gin.Context) {
+	if !isTaskCenterAdmin(c) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "permission denied",
+		})
+		return
+	}
+	var req stopTaskCenterBatchRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "invalid request",
+		})
+		return
+	}
+	if len(req.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "ids is required",
+		})
+		return
+	}
+	if len(req.IDs) > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "too many tasks selected",
+		})
+		return
+	}
+	results := make([]stopTaskCenterResult, 0, len(req.IDs))
+	stoppedCount := 0
+	refundedQuota := 0
+	seen := map[int64]bool{}
+	for _, id := range req.IDs {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		result := stopTaskCenter(c, id)
+		if result.Stopped {
+			stoppedCount++
+			refundedQuota += result.RefundedQuota
+		}
+		results = append(results, result)
+	}
+	common.ApiSuccess(c, gin.H{
+		"items":          results,
+		"stopped_count":  stoppedCount,
+		"refunded_quota": refundedQuota,
+	})
 }
 
 func UpdateTaskCenterRemark(c *gin.Context) {

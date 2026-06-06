@@ -19,9 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type {
   ApiResponse,
+  TaskCenterBatchStopResult,
   TaskCenterListParams,
   TaskCenterPage,
   TaskCenterRecord,
+  TaskCenterStopResult,
 } from './types'
 
 export async function listTaskCenter(
@@ -48,5 +50,19 @@ export async function updateTaskCenterRemark(
   remark: string
 ): Promise<ApiResponse<null>> {
   const res = await api.patch(`/api/task-center/${id}/remark`, { remark })
+  return res.data
+}
+
+export async function stopTaskCenter(
+  id: number
+): Promise<ApiResponse<TaskCenterStopResult>> {
+  const res = await api.post(`/api/task-center/${id}/stop`)
+  return res.data
+}
+
+export async function batchStopTaskCenter(
+  ids: number[]
+): Promise<ApiResponse<TaskCenterBatchStopResult>> {
+  const res = await api.post('/api/task-center/batch/stop', { ids })
   return res.data
 }

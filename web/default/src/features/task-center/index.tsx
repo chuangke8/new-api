@@ -29,6 +29,7 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
+  StopCircle,
   Video,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -40,6 +41,8 @@ import { useIsAdmin } from '@/hooks/use-admin'
 import { formatQuota } from '@/lib/format'
 import { cn, getPageNumbers } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Input } from '@/components/ui/input'
 import {
   Pagination,
@@ -79,8 +82,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
+  batchStopTaskCenter,
   getTaskCenterDetail,
   listTaskCenter,
+  stopTaskCenter,
   updateTaskCenterRemark,
 } from './api'
 import type { TaskCenterRecord } from './types'
@@ -127,6 +132,7 @@ const typeOptions = ['image', 'video', 'audio', 'other']
 const sourceOptions = ['workspace', 'api', 'system']
 
 type ColumnId =
+  | 'select'
   | 'task_id'
   | 'submitted_at'
   | 'completed_at'
@@ -156,6 +162,7 @@ const baseColumnOptions: ColumnOption[] = [
   { id: 'actions', label: 'View Details', required: true },
 ]
 
+const selectColumnOption: ColumnOption = { id: 'select', label: 'Select', required: true }
 const adminColumnOption: ColumnOption = { id: 'user', label: 'User' }
 
 function loadVisibleColumns(): Partial<Record<ColumnId, boolean>> {
@@ -173,6 +180,10 @@ function taskTypeIcon(taskType: string) {
   if (taskType === 'video') return Video
   if (taskType === 'audio') return FileAudio
   return FileText
+}
+
+function canStopTask(record: TaskCenterRecord) {
+  return ['pending', 'running'].includes(String(record.status).toLowerCase())
 }
 
 function translatedStatus(t: (key: string) => string, status: string) {
@@ -549,6 +560,9 @@ export function TaskCenter() {
   const [filters, setFilters] = useState<Filters>(defaultFilters)
   const [draftFilters, setDraftFilters] = useState<Filters>(defaultFilters)
   const [detailRecord, setDetailRecord] = useState<TaskCenterRecord | null>(null)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [stopTarget, setStopTarget] = useState<TaskCenterRecord | null>(null)
+  const [batchStopOpen, setBatchStopOpen] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState<
     Partial<Record<ColumnId, boolean>>
   >(() => loadVisibleColumns())
@@ -557,6 +571,7 @@ export function TaskCenter() {
     () =>
       isAdmin
         ? [
+            selectColumnOption,
             ...baseColumnOptions.slice(0, 3),
             adminColumnOption,
             ...baseColumnOptions.slice(3),
@@ -618,9 +633,74 @@ export function TaskCenter() {
     onError: () => toast.error(t('Failed to save remark')),
   })
 
+  const stopMutation = useMutation({
+    mutationFn: (id: number) => stopTaskCenter(id),
+    onSuccess: (res) => {
+      if (!res.success) {
+        toast.error(res.message || t('Failed to stop task'))
+        return
+      }
+      toast.success(
+        t('Task stopped and {{amount}} refunded', {
+          amount: formatQuota(res.data.refunded_quota || 0),
+        })
+      )
+      setStopTarget(null)
+      setSelectedIds((current) => current.filter((id) => id !== res.data.id))
+      queryClient.invalidateQueries({ queryKey: ['task-center'] })
+    },
+    onError: () => toast.error(t('Failed to stop task')),
+  })
+
+  const batchStopMutation = useMutation({
+    mutationFn: (ids: number[]) => batchStopTaskCenter(ids),
+    onSuccess: (res) => {
+      if (!res.success) {
+        toast.error(res.message || t('Failed to stop selected tasks'))
+        return
+      }
+      toast.success(
+        t('Stopped {{count}} task(s), refunded {{amount}}', {
+          count: res.data.stopped_count,
+          amount: formatQuota(res.data.refunded_quota || 0),
+        })
+      )
+      setBatchStopOpen(false)
+      setSelectedIds([])
+      queryClient.invalidateQueries({ queryKey: ['task-center'] })
+    },
+    onError: () => toast.error(t('Failed to stop selected tasks')),
+  })
+
   const records = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const stoppableRecords = records.filter(canStopTask)
+  const selectedStoppableIds = selectedIds.filter((id) =>
+    stoppableRecords.some((record) => record.id === id)
+  )
+  const allStoppableSelected =
+    stoppableRecords.length > 0 &&
+    stoppableRecords.every((record) => selectedIds.includes(record.id))
+
+  const toggleTaskSelection = (id: number, checked: boolean) => {
+    setSelectedIds((current) => {
+      if (checked) return Array.from(new Set([...current, id]))
+      return current.filter((item) => item !== id)
+    })
+  }
+
+  const toggleAllStoppable = (checked: boolean) => {
+    if (!checked) {
+      setSelectedIds((current) =>
+        current.filter((id) => !stoppableRecords.some((record) => record.id === id))
+      )
+      return
+    }
+    setSelectedIds((current) =>
+      Array.from(new Set([...current, ...stoppableRecords.map((record) => record.id)]))
+    )
+  }
 
   const submitFilters = () => {
     setPage(1)
@@ -637,6 +717,17 @@ export function TaskCenter() {
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Task Center')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
+        {isAdmin && (
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => setBatchStopOpen(true)}
+            disabled={selectedStoppableIds.length === 0}
+          >
+            <StopCircle className='size-4' />
+            {t('Stop Selected')}
+          </Button>
+        )}
         <Button
           variant='outline'
           size='sm'
@@ -818,6 +909,18 @@ export function TaskCenter() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isAdmin && isColumnVisible('select') && (
+                    <TableHead className='w-10'>
+                      <Checkbox
+                        checked={allStoppableSelected}
+                        disabled={stoppableRecords.length === 0}
+                        onCheckedChange={(checked) =>
+                          toggleAllStoppable(Boolean(checked))
+                        }
+                        aria-label={t('Select stoppable tasks')}
+                      />
+                    </TableHead>
+                  )}
                   {isColumnVisible('task_id') && <TableHead>{t('Task ID')}</TableHead>}
                   {isColumnVisible('submitted_at') && <TableHead>{t('Submitted Time')}</TableHead>}
                   {isColumnVisible('completed_at') && <TableHead>{t('Completed Time')}</TableHead>}
@@ -828,7 +931,7 @@ export function TaskCenter() {
                   {isColumnVisible('cost') && <TableHead>{t('Cost')}</TableHead>}
                   {isColumnVisible('remark') && <TableHead>{t('Remark')}</TableHead>}
                   {isColumnVisible('actions') && (
-                    <TableHead className='text-right'>{t('View Details')}</TableHead>
+                    <TableHead className='text-right'>{t('Actions')}</TableHead>
                   )}
                 </TableRow>
               </TableHeader>
@@ -854,6 +957,18 @@ export function TaskCenter() {
                     const tags = parseTags(record.tags)
                     return (
                       <TableRow key={record.id}>
+                        {isAdmin && isColumnVisible('select') && (
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedIds.includes(record.id)}
+                              disabled={!canStopTask(record)}
+                              onCheckedChange={(checked) =>
+                                toggleTaskSelection(record.id, Boolean(checked))
+                              }
+                              aria-label={t('Select task')}
+                            />
+                          </TableCell>
+                        )}
                         {isColumnVisible('task_id') && (
                           <TableCell>
                             <div className='flex max-w-72 items-center gap-2'>
@@ -929,14 +1044,26 @@ export function TaskCenter() {
                         )}
                         {isColumnVisible('actions') && (
                           <TableCell className='text-right'>
-                            <Button
-                              variant='outline'
-                              size='sm'
-                              onClick={() => setDetailRecord(record)}
-                            >
-                              <Eye className='size-4' />
-                              {t('View')}
-                            </Button>
+                            <div className='flex justify-end gap-2'>
+                              {isAdmin && canStopTask(record) && (
+                                <Button
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={() => setStopTarget(record)}
+                                >
+                                  <StopCircle className='size-4' />
+                                  {t('Stop')}
+                                </Button>
+                              )}
+                              <Button
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setDetailRecord(record)}
+                              >
+                                <Eye className='size-4' />
+                                {t('View')}
+                              </Button>
+                            </div>
                           </TableCell>
                         )}
                       </TableRow>
@@ -1003,6 +1130,35 @@ export function TaskCenter() {
           onOpenChange={(open) => {
             if (!open) setDetailRecord(null)
           }}
+        />
+        <ConfirmDialog
+          open={Boolean(stopTarget)}
+          onOpenChange={(open) => {
+            if (!open) setStopTarget(null)
+          }}
+          title={t('Stop task and refund')}
+          desc={t(
+            'Stopping this task will mark it as cancelled and refund the charged quota. This action cannot be undone.'
+          )}
+          confirmText={t('Stop and Refund')}
+          destructive
+          isLoading={stopMutation.isPending}
+          handleConfirm={() => {
+            if (stopTarget) stopMutation.mutate(stopTarget.id)
+          }}
+        />
+        <ConfirmDialog
+          open={batchStopOpen}
+          onOpenChange={setBatchStopOpen}
+          title={t('Stop selected tasks and refund')}
+          desc={t(
+            'Stopping selected tasks will mark running or pending tasks as cancelled and refund charged quota. This action cannot be undone.'
+          )}
+          confirmText={t('Stop Selected')}
+          destructive
+          disabled={selectedStoppableIds.length === 0}
+          isLoading={batchStopMutation.isPending}
+          handleConfirm={() => batchStopMutation.mutate(selectedStoppableIds)}
         />
       </SectionPageLayout.Content>
     </SectionPageLayout>

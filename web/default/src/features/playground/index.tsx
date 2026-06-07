@@ -46,7 +46,9 @@ import {
   createUserMessage,
 } from './lib'
 import type {
+  GroupOption,
   Message as MessageType,
+  ModelOption,
   WorkspaceChatMessage,
   WorkspaceChatMessageMetadata,
   WorkspaceChatSession,
@@ -94,6 +96,47 @@ function isPersistableMessage(message: MessageType) {
   )
 }
 
+function uniqueValues(values: Array<string | undefined>) {
+  const seen = new Set<string>()
+  return values
+    .map((value) => value?.trim())
+    .filter((value): value is string => {
+      if (!value || seen.has(value)) return false
+      seen.add(value)
+      return true
+    })
+}
+
+function resolveGroupForModel(
+  model: ModelOption | undefined,
+  groups: GroupOption[]
+) {
+  if (!model || groups.length === 0) return ''
+
+  const candidates = uniqueValues([
+    model.categoryAlias,
+    model.categoryName,
+    model.categoryDisplay,
+    model.category,
+  ])
+
+  for (const candidate of candidates) {
+    const exact = groups.find((group) => group.value === candidate)
+    if (exact) return exact.value
+  }
+
+  const normalizedCandidates = candidates.map((candidate) =>
+    candidate.toLocaleLowerCase()
+  )
+  const caseInsensitive = groups.find((group) =>
+    normalizedCandidates.includes(group.value.toLocaleLowerCase())
+  )
+  if (caseInsensitive) return caseInsensitive.value
+
+  const defaultGroup = groups.find((group) => group.value === 'default')
+  return defaultGroup?.value ?? groups[0].value
+}
+
 export function Playground() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -103,6 +146,7 @@ export function Playground() {
     parameterEnabled,
     messages,
     models,
+    groups,
     updateMessages,
     setModels,
     setGroups,
@@ -233,18 +277,18 @@ export function Playground() {
     setModels(modelsData)
 
     // Set default model if current model is not available
-    const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
-    if (modelsData.length > 0 && !isCurrentModelValid) {
-      updateConfig('model', modelsData[0].value)
+    const currentModel = modelsData.find((m) => m.value === config.model)
+    if (modelsData.length > 0 && !currentModel) {
+      const nextModel = modelsData[0]
+      updateConfig('model', nextModel.value)
+      setModelCategory(nextModel.category || t('Other'))
+    } else if (currentModel) {
+      setModelCategory(currentModel.category || t('Other'))
     } else if (modelsData.length === 0 && config.model) {
       updateConfig('model', '')
     }
-  }, [modelsData, config.model, setModels, updateConfig])
+  }, [modelsData, config.model, setModels, t, updateConfig])
 
-  const selectedModel = useMemo(
-    () => models.find((model) => model.value === config.model),
-    [config.model, models]
-  )
   const modelCategoryOptions = useMemo(() => {
     const seen = new Set<string>()
     return models
@@ -267,6 +311,10 @@ export function Playground() {
         : models,
     [modelCategory, models, t]
   )
+  const selectedModel = useMemo(
+    () => visibleModels.find((model) => model.value === config.model),
+    [config.model, visibleModels]
+  )
 
   useEffect(() => {
     if (modelCategoryOptions.length === 0) {
@@ -284,15 +332,28 @@ export function Playground() {
   useEffect(() => {
     if (visibleModels.length === 0) return
     if (!visibleModels.some((item) => item.value === config.model)) {
-      updateConfig('model', visibleModels[0].value)
+      const nextModel = visibleModels[0]
+      updateConfig('model', nextModel.value)
+      const nextGroup = resolveGroupForModel(nextModel, groups)
+      if (nextGroup && nextGroup !== config.group) {
+        updateConfig('group', nextGroup)
+      }
     }
-  }, [config.model, updateConfig, visibleModels])
+  }, [config.group, config.model, groups, updateConfig, visibleModels])
 
   const loadSessionMessages = useCallback(
     async (session: WorkspaceChatSession) => {
       loadingSessionRef.current = true
       setActiveSessionId(session.id)
       if (isMobile) setSessionsCollapsed(true)
+      const sessionModel = models.find((model) => model.value === session.model)
+      if (sessionModel) {
+        setModelCategory(sessionModel.category || t('Other'))
+        const nextGroup = resolveGroupForModel(sessionModel, groups)
+        if (nextGroup && nextGroup !== config.group) {
+          updateConfig('group', nextGroup)
+        }
+      }
       updateConfig('model', session.model || config.model)
       try {
         const res = await getWorkspaceChatMessages(session.id)
@@ -311,7 +372,7 @@ export function Playground() {
         loadingSessionRef.current = false
       }
     },
-    [config.model, isMobile, t, updateConfig, updateMessages]
+    [config.group, config.model, groups, isMobile, models, t, updateConfig, updateMessages]
   )
 
   const ensureActiveSession = useCallback(async () => {
@@ -363,6 +424,15 @@ export function Playground() {
 
     setGroups(groupsData)
 
+    const currentModel = models.find((model) => model.value === config.model)
+    const modelGroup = resolveGroupForModel(currentModel, groupsData)
+    if (modelGroup) {
+      if (modelGroup !== config.group) {
+        updateConfig('group', modelGroup)
+      }
+      return
+    }
+
     const hasCurrentGroup = groupsData.some((g) => g.value === config.group)
     if (!hasCurrentGroup && groupsData.length > 0) {
       const fallback =
@@ -370,7 +440,7 @@ export function Playground() {
         groupsData[0].value
       updateConfig('group', fallback)
     }
-  }, [groupsData, setGroups, config.group, updateConfig])
+  }, [groupsData, setGroups, config.group, config.model, models, updateConfig])
 
   useEffect(() => {
     if (!isMobile || appliedMobileDefaultRef.current) return
@@ -486,6 +556,37 @@ export function Playground() {
     updateMessages(newMessages)
   }
 
+  const handleModelChange = useCallback(
+    (value: string) => {
+      const nextModel =
+        visibleModels.find((model) => model.value === value) ??
+        models.find((model) => model.value === value)
+
+      updateConfig('model', value)
+
+      if (!nextModel) return
+
+      const nextCategory = nextModel.category || t('Other')
+      if (nextCategory !== modelCategory) {
+        setModelCategory(nextCategory)
+      }
+
+      const nextGroup = resolveGroupForModel(nextModel, groups)
+      if (nextGroup && nextGroup !== config.group) {
+        updateConfig('group', nextGroup)
+      }
+    },
+    [
+      config.group,
+      groups,
+      modelCategory,
+      models,
+      t,
+      updateConfig,
+      visibleModels,
+    ]
+  )
+
   return (
     <div className='relative flex size-full overflow-hidden'>
       {!sessionsCollapsed && (
@@ -567,7 +668,7 @@ export function Playground() {
             modelCategories={modelCategoryOptions}
             modelCategoryValue={modelCategory}
             onModelCategoryChange={setModelCategory}
-            onModelChange={(value) => updateConfig('model', value)}
+            onModelChange={handleModelChange}
             onStop={stopGeneration}
             onSubmit={handleSendMessage}
             capabilities={

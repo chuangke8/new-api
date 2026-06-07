@@ -146,6 +146,9 @@ export interface ModelOption {
   label: string
   value: string
   category?: string
+  categoryName?: string
+  categoryAlias?: string
+  categoryDisplay?: string
   description?: string
   visionEnabled?: boolean
   fileUploadEnabled?: boolean

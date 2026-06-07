@@ -369,6 +369,53 @@ function stringVideoPresetToDto(value: string): WorkspaceVideoPresetDto {
   }
 }
 
+function normalizeCapabilitiesForSave(
+  config: WorkspaceManagerConfig,
+  capabilities: WorkspaceChannel['capabilities']
+): WorkspaceChannel['capabilities'] {
+  return config.capabilities.reduce(
+    (acc, capability) => ({
+      ...acc,
+      [capability.key]: Boolean(capabilities[capability.key]),
+    }),
+    { ...capabilities }
+  )
+}
+
+function normalizeChannelForSave(
+  channel: WorkspaceChannel,
+  config: WorkspaceManagerConfig
+): WorkspaceChannel {
+  const kind = config.kind
+  return {
+    ...channel,
+    capabilities: normalizeCapabilitiesForSave(config, channel.capabilities),
+    imageFieldMappings:
+      kind === 'image'
+        ? {
+            ...DEFAULT_IMAGE_FIELD_MAPPINGS,
+            ...(channel.imageFieldMappings || {}),
+          }
+        : channel.imageFieldMappings,
+    videoFieldMappings:
+      kind === 'video'
+        ? {
+            ...DEFAULT_VIDEO_FIELD_MAPPINGS,
+            ...(channel.videoFieldMappings || {}),
+          }
+        : channel.videoFieldMappings,
+    sizePresets: channel.sizePresets || [],
+    ratioPresets: channel.ratioPresets || [],
+    stylePresets: channel.stylePresets || [],
+    qualityPresets: channel.qualityPresets || [],
+    cameraPresets: kind === 'video' ? channel.cameraPresets || [] : undefined,
+    durationPresets:
+      kind === 'video' ? channel.durationPresets || [] : undefined,
+    frameRatePresets:
+      kind === 'video' ? channel.frameRatePresets || [] : undefined,
+  }
+}
+
 function fromVideoCategoryDto(
   category: WorkspaceVideoCategoryDto
 ): WorkspaceChannelCategory {
@@ -1741,10 +1788,10 @@ function ChannelDialog(props: {
     capability: WorkspaceCapabilityConfig,
     checked: boolean
   ) => {
-    setDraft({
-      ...draft,
+    setDraft((current) => current && {
+      ...current,
       capabilities: {
-        ...draft.capabilities,
+        ...current.capabilities,
         [capability.key]: checked,
       },
     })
@@ -2039,7 +2086,11 @@ function ChannelDialog(props: {
           <Button variant='outline' onClick={() => props.onOpenChange(false)}>
             {t('Cancel')}
           </Button>
-          <Button onClick={() => props.onSave(draft)}>
+          <Button
+            onClick={() =>
+              props.onSave(normalizeChannelForSave(draft, props.config))
+            }
+          >
             <Save />
             {t('Save')}
           </Button>

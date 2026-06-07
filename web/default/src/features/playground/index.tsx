@@ -109,32 +109,31 @@ function uniqueValues(values: Array<string | undefined>) {
 
 function resolveGroupForModel(
   model: ModelOption | undefined,
-  groups: GroupOption[]
+  groups: GroupOption[],
+  currentGroup = ''
 ) {
   if (!model || groups.length === 0) return ''
 
-  const candidates = uniqueValues([
-    model.categoryAlias,
-    model.categoryName,
-    model.categoryDisplay,
-    model.category,
-  ])
+  const usableGroups = new Set(groups.map((group) => group.value))
+  const modelGroups = uniqueValues(model.enableGroups ?? [])
+  const allGroupsEnabled = modelGroups.includes('all')
 
-  for (const candidate of candidates) {
-    const exact = groups.find((group) => group.value === candidate)
-    if (exact) return exact.value
+  if (
+    currentGroup &&
+    usableGroups.has(currentGroup) &&
+    (allGroupsEnabled || modelGroups.includes(currentGroup))
+  ) {
+    return currentGroup
   }
 
-  const normalizedCandidates = candidates.map((candidate) =>
-    candidate.toLocaleLowerCase()
-  )
-  const caseInsensitive = groups.find((group) =>
-    normalizedCandidates.includes(group.value.toLocaleLowerCase())
-  )
-  if (caseInsensitive) return caseInsensitive.value
+  if (allGroupsEnabled || modelGroups.length === 0) {
+    if (currentGroup && usableGroups.has(currentGroup)) return currentGroup
+    const defaultGroup = groups.find((group) => group.value === 'default')
+    return defaultGroup?.value ?? groups[0].value
+  }
 
-  const defaultGroup = groups.find((group) => group.value === 'default')
-  return defaultGroup?.value ?? groups[0].value
+  const enabledGroup = modelGroups.find((group) => usableGroups.has(group))
+  return enabledGroup ?? modelGroups[0]
 }
 
 export function Playground() {
@@ -334,7 +333,7 @@ export function Playground() {
     if (!visibleModels.some((item) => item.value === config.model)) {
       const nextModel = visibleModels[0]
       updateConfig('model', nextModel.value)
-      const nextGroup = resolveGroupForModel(nextModel, groups)
+      const nextGroup = resolveGroupForModel(nextModel, groups, config.group)
       if (nextGroup && nextGroup !== config.group) {
         updateConfig('group', nextGroup)
       }
@@ -349,7 +348,7 @@ export function Playground() {
       const sessionModel = models.find((model) => model.value === session.model)
       if (sessionModel) {
         setModelCategory(sessionModel.category || t('Other'))
-        const nextGroup = resolveGroupForModel(sessionModel, groups)
+        const nextGroup = resolveGroupForModel(sessionModel, groups, config.group)
         if (nextGroup && nextGroup !== config.group) {
           updateConfig('group', nextGroup)
         }
@@ -425,7 +424,11 @@ export function Playground() {
     setGroups(groupsData)
 
     const currentModel = models.find((model) => model.value === config.model)
-    const modelGroup = resolveGroupForModel(currentModel, groupsData)
+    const modelGroup = resolveGroupForModel(
+      currentModel,
+      groupsData,
+      config.group
+    )
     if (modelGroup) {
       if (modelGroup !== config.group) {
         updateConfig('group', modelGroup)
@@ -571,7 +574,7 @@ export function Playground() {
         setModelCategory(nextCategory)
       }
 
-      const nextGroup = resolveGroupForModel(nextModel, groups)
+      const nextGroup = resolveGroupForModel(nextModel, groups, config.group)
       if (nextGroup && nextGroup !== config.group) {
         updateConfig('group', nextGroup)
       }

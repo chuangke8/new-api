@@ -44,6 +44,7 @@ type WorkspaceChatModelDto = {
   category_name: string
   category_alias: string
   category_display: string
+  enable_groups?: string[]
   vision_enabled: boolean
   file_upload_enabled: boolean
   web_search_enabled: boolean
@@ -99,6 +100,7 @@ export async function getWorkspaceChatModels(): Promise<ModelOption[]> {
     categoryName: model.category_name,
     categoryAlias: model.category_alias,
     categoryDisplay: model.category_display,
+    enableGroups: Array.isArray(model.enable_groups) ? model.enable_groups : [],
     visionEnabled: model.vision_enabled,
     fileUploadEnabled: model.file_upload_enabled,
     webSearchEnabled: model.web_search_enabled,

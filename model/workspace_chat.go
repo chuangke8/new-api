@@ -41,17 +41,18 @@ type WorkspaceChatChannel struct {
 }
 
 type WorkspaceChatModel struct {
-	Id                int    `json:"id"`
-	Model             string `json:"model"`
-	ModelAlias        string `json:"model_alias"`
-	DisplayName       string `json:"display_name"`
-	CategoryId        int    `json:"category_id"`
-	CategoryName      string `json:"category_name"`
-	CategoryAlias     string `json:"category_alias"`
-	CategoryDisplay   string `json:"category_display"`
-	VisionEnabled     bool   `json:"vision_enabled"`
-	FileUploadEnabled bool   `json:"file_upload_enabled"`
-	WebSearchEnabled  bool   `json:"web_search_enabled"`
+	Id                int      `json:"id"`
+	Model             string   `json:"model"`
+	ModelAlias        string   `json:"model_alias"`
+	DisplayName       string   `json:"display_name"`
+	CategoryId        int      `json:"category_id"`
+	CategoryName      string   `json:"category_name"`
+	CategoryAlias     string   `json:"category_alias"`
+	CategoryDisplay   string   `json:"category_display"`
+	EnableGroups      []string `json:"enable_groups"`
+	VisionEnabled     bool     `json:"vision_enabled"`
+	FileUploadEnabled bool     `json:"file_upload_enabled"`
+	WebSearchEnabled  bool     `json:"web_search_enabled"`
 }
 
 type WorkspaceChatSession struct {
@@ -243,6 +244,7 @@ func GetWorkspaceChatModels() ([]WorkspaceChatModel, error) {
 			CategoryName:      categoryName,
 			CategoryAlias:     categoryAlias,
 			CategoryDisplay:   categoryDisplay,
+			EnableGroups:      GetModelEnableGroups(channel.Model),
 			VisionEnabled:     channel.VisionEnabled,
 			FileUploadEnabled: channel.FileUploadEnabled,
 			WebSearchEnabled:  channel.WebSearchEnabled,

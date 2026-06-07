@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
@@ -251,18 +252,12 @@ func GetHomePageContent(c *gin.Context) {
 func SendEmailVerification(c *gin.Context) {
 	email := c.Query("email")
 	if err := common.Validate.Var(email, "required,email"); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的邮箱地址",
-		})
+		common.ApiErrorI18n(c, i18n.MsgSettingEmailInvalid)
 		return
 	}
 	localPart := parts[0]
@@ -276,37 +271,28 @@ func SendEmailVerification(c *gin.Context) {
 			}
 		}
 		if !allowed {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.",
-			})
+			common.ApiErrorI18n(c, i18n.MsgUserEmailDomainNotAllowed)
 			return
 		}
 	}
 	if common.EmailAliasRestrictionEnabled {
 		containsSpecialSymbols := strings.Contains(localPart, "+") || strings.Contains(localPart, ".")
 		if containsSpecialSymbols {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员已启用邮箱地址别名限制，您的邮箱地址由于包含特殊符号而被拒绝。",
-			})
+			common.ApiErrorI18n(c, i18n.MsgUserEmailAliasNotAllowed)
 			return
 		}
 	}
 
 	if model.IsEmailAlreadyTaken(email) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "邮箱地址已被占用",
-		})
+		common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
 		return
 	}
 	code := common.GenerateVerificationCode(6)
 	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
 	subject := fmt.Sprintf("%s邮箱验证邮件", common.SystemName)
-	content := fmt.Sprintf("<p>您好，你正在进行%s邮箱验证。</p>"+
-		"<p>您的验证码为: <strong>%s</strong></p>"+
-		"<p>验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, code, common.VerificationValidMinutes)
+	content := fmt.Sprintf("<p>您好，您正在进行 %s 邮箱验证。</p>"+
+		"<p>您的验证码为：<strong>%s</strong></p>"+
+		"<p>验证码 %d 分钟内有效。如果不是本人操作，请忽略此邮件。</p>", common.SystemName, code, common.VerificationValidMinutes)
 	err := common.SendEmail(subject, email, content)
 	if err != nil {
 		common.ApiError(c, err)

@@ -284,6 +284,8 @@ function defaultVideoFeatureControls(): WorkspaceVideoFeatureControlsDto {
     camera_control: true,
     seed_control: true,
     batch_control: true,
+    type_control: false,
+    type_value: '',
   }
 }
 
@@ -293,6 +295,7 @@ function defaultVideoFieldMappings(): WorkspaceVideoFieldMappingsDto {
     reference_image: DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImage,
     reference_images: DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImages,
     last_frame_image: DEFAULT_VIDEO_FIELD_MAPPINGS.lastFrameImage,
+    type: DEFAULT_VIDEO_FIELD_MAPPINGS.type,
     resolution: DEFAULT_VIDEO_FIELD_MAPPINGS.resolution,
     ratio: DEFAULT_VIDEO_FIELD_MAPPINGS.ratio,
     duration: DEFAULT_VIDEO_FIELD_MAPPINGS.duration,
@@ -330,6 +333,7 @@ function setMappedVideoPayloadField(
   const topLevelFields = new Set([
     'image',
     'images',
+    'type',
     'size',
     'duration',
     'seconds',

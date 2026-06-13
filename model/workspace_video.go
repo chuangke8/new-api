@@ -55,20 +55,22 @@ type WorkspaceVideoPreset struct {
 }
 
 type WorkspaceVideoFeatureControls struct {
-	FirstFrameImage      bool `json:"first_frame_image"`
-	LastFrameImage       bool `json:"last_frame_image"`
-	ReferenceImageUpload bool `json:"reference_image_upload"`
-	DurationControl      bool `json:"duration_control"`
-	RatioControl         bool `json:"ratio_control"`
-	ResolutionControl    bool `json:"resolution_control"`
-	FrameRateControl     bool `json:"frame_rate_control"`
-	StyleControl         bool `json:"style_control"`
-	QualityControl       bool `json:"quality_control"`
-	NegativePrompt       bool `json:"negative_prompt"`
-	AudioTrack           bool `json:"audio_track"`
-	CameraControl        bool `json:"camera_control"`
-	SeedControl          bool `json:"seed_control"`
-	BatchControl         bool `json:"batch_control"`
+	FirstFrameImage      bool   `json:"first_frame_image"`
+	LastFrameImage       bool   `json:"last_frame_image"`
+	ReferenceImageUpload bool   `json:"reference_image_upload"`
+	DurationControl      bool   `json:"duration_control"`
+	RatioControl         bool   `json:"ratio_control"`
+	ResolutionControl    bool   `json:"resolution_control"`
+	FrameRateControl     bool   `json:"frame_rate_control"`
+	StyleControl         bool   `json:"style_control"`
+	QualityControl       bool   `json:"quality_control"`
+	NegativePrompt       bool   `json:"negative_prompt"`
+	AudioTrack           bool   `json:"audio_track"`
+	CameraControl        bool   `json:"camera_control"`
+	SeedControl          bool   `json:"seed_control"`
+	BatchControl         bool   `json:"batch_control"`
+	TypeControl          bool   `json:"type_control"`
+	TypeValue            string `json:"type_value"`
 }
 
 type WorkspaceVideoFieldMappings struct {
@@ -76,6 +78,7 @@ type WorkspaceVideoFieldMappings struct {
 	ReferenceImage  string `json:"reference_image"`
 	ReferenceImages string `json:"reference_images"`
 	LastFrameImage  string `json:"last_frame_image"`
+	Type            string `json:"type"`
 	Resolution      string `json:"resolution"`
 	Ratio           string `json:"ratio"`
 	Duration        string `json:"duration"`
@@ -134,6 +137,7 @@ func DefaultWorkspaceVideoFieldMappings() WorkspaceVideoFieldMappings {
 		ReferenceImage:  "reference_image",
 		ReferenceImages: "images",
 		LastFrameImage:  "last_frame_image",
+		Type:            "type",
 		Resolution:      "size",
 		Ratio:           "aspect_ratio",
 		Duration:        "duration",
@@ -153,6 +157,7 @@ func NormalizeWorkspaceVideoFieldMappings(mappings WorkspaceVideoFieldMappings) 
 	mappings.ReferenceImage = strings.TrimSpace(mappings.ReferenceImage)
 	mappings.ReferenceImages = strings.TrimSpace(mappings.ReferenceImages)
 	mappings.LastFrameImage = strings.TrimSpace(mappings.LastFrameImage)
+	mappings.Type = strings.TrimSpace(mappings.Type)
 	mappings.Resolution = strings.TrimSpace(mappings.Resolution)
 	mappings.Ratio = strings.TrimSpace(mappings.Ratio)
 	mappings.Duration = strings.TrimSpace(mappings.Duration)
@@ -174,6 +179,9 @@ func NormalizeWorkspaceVideoFieldMappings(mappings WorkspaceVideoFieldMappings) 
 	}
 	if mappings.LastFrameImage == "" {
 		mappings.LastFrameImage = defaults.LastFrameImage
+	}
+	if mappings.Type == "" {
+		mappings.Type = defaults.Type
 	}
 	if mappings.Resolution == "" {
 		mappings.Resolution = defaults.Resolution
@@ -396,23 +404,23 @@ func UpdateWorkspaceVideoChannel(channel *WorkspaceVideoChannel) error {
 	}
 	channel.UpdatedTime = common.GetTimestamp()
 	return DB.Model(&WorkspaceVideoChannel{}).Where("id = ?", channel.Id).Updates(map[string]interface{}{
-		"weight":             channel.Weight,
-		"model":              channel.Model,
-		"model_alias":        channel.ModelAlias,
-		"category_id":        channel.CategoryId,
-		"feature_controls":   channel.FeatureControls,
-		"field_mappings":     channel.FieldMappings,
-		"max_batch_size":     channel.MaxBatchSize,
-		"resolution_presets": channel.ResolutionPresets,
-		"ratio_presets":      channel.RatioPresets,
-		"duration_presets":   channel.DurationPresets,
-		"frame_rate_presets": channel.FrameRatePresets,
-		"style_presets":      channel.StylePresets,
-		"quality_presets":    channel.QualityPresets,
-		"camera_presets":     channel.CameraPresets,
-		"disabled":           channel.Disabled,
-		"remark":             channel.Remark,
-		"updated_time":       channel.UpdatedTime,
+		"weight":                  channel.Weight,
+		"model":                   channel.Model,
+		"model_alias":             channel.ModelAlias,
+		"category_id":             channel.CategoryId,
+		"feature_controls":        channel.FeatureControls,
+		"field_mappings":          channel.FieldMappings,
+		"max_batch_size":          channel.MaxBatchSize,
+		"resolution_presets":      channel.ResolutionPresets,
+		"ratio_presets":           channel.RatioPresets,
+		"duration_presets":        channel.DurationPresets,
+		"frame_rate_presets":      channel.FrameRatePresets,
+		"style_presets":           channel.StylePresets,
+		"quality_presets":         channel.QualityPresets,
+		"camera_movement_presets": channel.CameraPresets,
+		"disabled":                channel.Disabled,
+		"remark":                  channel.Remark,
+		"updated_time":            channel.UpdatedTime,
 	}).Error
 }
 

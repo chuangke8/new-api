@@ -689,6 +689,7 @@ type TaskSubmitReq struct {
 	Mode           string                 `json:"mode,omitempty"`
 	Image          string                 `json:"image,omitempty"`
 	Images         []string               `json:"images,omitempty"`
+	Type           any                    `json:"type,omitempty"`
 	Size           string                 `json:"size,omitempty"`
 	Duration       int                    `json:"duration,omitempty"`
 	Seconds        string                 `json:"seconds,omitempty"`
@@ -709,6 +710,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	aux := &struct {
 		Metadata json.RawMessage `json:"metadata,omitempty"`
 		Duration json.RawMessage `json:"duration,omitempty"`
+		Type     json.RawMessage `json:"type,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -738,13 +740,25 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 			var metadataObj map[string]interface{}
 			if err := common.Unmarshal([]byte(metadataStr), &metadataObj); err == nil {
 				t.Metadata = metadataObj
-				return nil
 			}
 		}
 
 		var metadataObj map[string]interface{}
 		if err := common.Unmarshal(aux.Metadata, &metadataObj); err == nil {
 			t.Metadata = metadataObj
+		}
+	}
+
+	if len(aux.Type) > 0 {
+		var typeValue any
+		if err := common.Unmarshal(aux.Type, &typeValue); err == nil {
+			t.Type = typeValue
+			if t.Metadata == nil {
+				t.Metadata = map[string]interface{}{}
+			}
+			if _, exists := t.Metadata["type"]; !exists {
+				t.Metadata["type"] = typeValue
+			}
 		}
 	}
 

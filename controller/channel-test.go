@@ -464,18 +464,20 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 	}
 	usageA, respErr := adaptor.DoResponse(c, httpResp, info)
 	if respErr != nil {
+		normalizedErr := normalizeChannelTestError(respErr)
 		return testResult{
 			context:     c,
-			localErr:    respErr,
-			newAPIError: respErr,
+			localErr:    normalizedErr,
+			newAPIError: types.NewOpenAIError(normalizedErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
 		}
 	}
 	usage, usageErr := coerceTestUsage(usageA, isStream, info.GetEstimatePromptTokens())
 	if usageErr != nil {
+		normalizedErr := normalizeChannelTestError(usageErr)
 		return testResult{
 			context:     c,
-			localErr:    usageErr,
-			newAPIError: types.NewOpenAIError(usageErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
+			localErr:    normalizedErr,
+			newAPIError: types.NewOpenAIError(normalizedErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
 		}
 	}
 	result := w.Result()
@@ -488,10 +490,11 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 		}
 	}
 	if bodyErr := validateTestResponseBody(respBody, isStream); bodyErr != nil {
+		normalizedErr := normalizeChannelTestError(bodyErr)
 		return testResult{
 			context:     c,
-			localErr:    bodyErr,
-			newAPIError: types.NewOpenAIError(bodyErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
+			localErr:    normalizedErr,
+			newAPIError: types.NewOpenAIError(normalizedErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
 		}
 	}
 	info.SetEstimatePromptTokens(usage.PromptTokens)
@@ -661,6 +664,18 @@ func validateTestResponseBody(respBody []byte, isStream bool) error {
 		return validateStreamTestResponseBody(respBody)
 	}
 	return nil
+}
+
+func normalizeChannelTestError(err error) error {
+	if err == nil {
+		return nil
+	}
+	message := err.Error()
+	if strings.Contains(message, "invalid character") &&
+		strings.Contains(message, "looking for beginning of value") {
+		return errors.New("上游返回格式异常：返回内容不是有效 JSON，请检查渠道地址、鉴权配置或测试端点")
+	}
+	return err
 }
 
 func shouldUseStreamForAutomaticChannelTest(channel *model.Channel) bool {

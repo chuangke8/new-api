@@ -144,6 +144,8 @@ export type WorkspaceVideoFeatureControlsDto = {
   camera_control: boolean
   seed_control: boolean
   batch_control: boolean
+  type_control: boolean
+  type_value: string
 }
 
 export type WorkspaceVideoFieldMappingsDto = {
@@ -151,6 +153,7 @@ export type WorkspaceVideoFieldMappingsDto = {
   reference_image: string
   reference_images: string
   last_frame_image: string
+  type: string
   resolution: string
   ratio: string
   duration: string

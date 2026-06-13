@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { Mail, MessageCircle, QrCode } from 'lucide-react'
+import {
+  BriefcaseBusiness,
+  Headset,
+  Mail,
+  MessageCircle,
+  QrCode,
+} from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Button } from '@/components/ui/button'
@@ -131,9 +138,9 @@ export function ContactCTA(props: ContactCTAProps) {
               </DialogHeader>
               <div className='grid gap-4 sm:grid-cols-2'>
                 <ContactCard
-                  title={t('WeChat QR Code')}
+                  title={t('Business QR Code')}
                   image={contact?.wechatQrImage}
-                  fallback={t('WeChat QR code not configured')}
+                  fallback={t('Business QR code not configured')}
                 />
                 <ContactCard
                   title={t('Customer Service QR Code')}
@@ -146,7 +153,7 @@ export function ContactCTA(props: ContactCTAProps) {
                   <MessageCircle className='text-muted-foreground size-4 shrink-0' />
                   <div className='min-w-0'>
                     <div className='text-muted-foreground text-xs'>
-                      {t('WeChat ID')}
+                      {t('Business Contact ID')}
                     </div>
                     <div className='truncate font-medium'>
                       {contact?.wechatId || t('Not configured')}
@@ -170,5 +177,81 @@ export function ContactCTA(props: ContactCTAProps) {
         </div>
       </AnimateInView>
     </section>
+  )
+}
+
+function FloatingContactDialog(props: {
+  title: string
+  image?: string
+  fallback: string
+  icon: ReactNode
+  buttonClassName?: string
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <Dialog>
+      <DialogTrigger
+        render={
+          <Button
+            type='button'
+            className={props.buttonClassName}
+            aria-label={props.title}
+          />
+        }
+      >
+        <span className='flex items-center gap-2'>
+          {props.icon}
+          <span>{props.title}</span>
+        </span>
+      </DialogTrigger>
+      <DialogContent className='sm:max-w-sm'>
+        <DialogHeader>
+          <DialogTitle>{props.title}</DialogTitle>
+          <DialogDescription>
+            {t('Scan the QR code to contact {{name}}.', {
+              name: props.title,
+            })}
+          </DialogDescription>
+        </DialogHeader>
+        <ContactCard
+          title={props.title}
+          image={props.image}
+          fallback={props.fallback}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export function HomeContactFloatingActions() {
+  const { t } = useTranslation()
+  const { contact } = useSystemConfig()
+  const hasSupport = Boolean(contact?.supportQrImage)
+  const hasBusiness = Boolean(contact?.wechatQrImage)
+
+  if (!hasSupport && !hasBusiness) return null
+
+  return (
+    <div className='fixed top-1/2 right-4 z-50 flex max-w-[calc(100vw-2rem)] -translate-y-1/2 flex-col items-end gap-2 sm:right-6'>
+      {hasSupport ? (
+        <FloatingContactDialog
+          title={t('Online customer service')}
+          image={contact?.supportQrImage}
+          fallback={t('Customer service QR code not configured')}
+          icon={<Headset className='size-4' />}
+          buttonClassName='h-10 rounded-lg px-4 shadow-lg'
+        />
+      ) : null}
+      {hasBusiness ? (
+        <FloatingContactDialog
+          title={t('Business cooperation')}
+          image={contact?.wechatQrImage}
+          fallback={t('Business QR code not configured')}
+          icon={<BriefcaseBusiness className='size-4' />}
+          buttonClassName='h-10 rounded-lg bg-emerald-600 px-4 text-white shadow-lg hover:bg-emerald-700'
+        />
+      ) : null}
+    </div>
   )
 }

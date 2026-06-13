@@ -260,9 +260,9 @@ export function ContactInfoSection({ defaultValues }: ContactInfoSectionProps) {
                 form={form}
                 name='contact.wechat_qr_image'
                 fieldKey='wechat_qr_image'
-                label={t('WeChat QR Code')}
+                label={t('Business QR Code')}
                 description={t(
-                  'Upload the WeChat QR code image saved on the server.'
+                  'Upload the business QR code image saved on the server.'
                 )}
               />
               <QRImageUploadField
@@ -280,10 +280,10 @@ export function ContactInfoSection({ defaultValues }: ContactInfoSectionProps) {
                   name='contact.wechat_id'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('WeChat ID')}</FormLabel>
+                      <FormLabel>{t('Business Contact ID')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={t('Enter WeChat ID')}
+                          placeholder={t('Enter business contact ID')}
                           value={field.value ?? ''}
                           onChange={field.onChange}
                           name={field.name}
@@ -292,7 +292,7 @@ export function ContactInfoSection({ defaultValues }: ContactInfoSectionProps) {
                         />
                       </FormControl>
                       <FormDescription>
-                        {t('Saved for future frontend contact display.')}
+                        {t('Business contact information saved for frontend display.')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -318,7 +318,7 @@ export function ContactInfoSection({ defaultValues }: ContactInfoSectionProps) {
                         />
                       </FormControl>
                       <FormDescription>
-                        {t('Saved for future frontend contact display.')}
+                        {t('Customer service information saved for frontend display.')}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

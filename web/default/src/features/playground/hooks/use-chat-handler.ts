@@ -102,10 +102,13 @@ export function useChatHandler({
 
   // Send streaming chat request
   const sendStreamingChat = useCallback(
-    (messages: Message[]) => {
+    (messages: Message[], configOverride?: Partial<PlaygroundConfig>) => {
+      const requestConfig = configOverride
+        ? { ...config, ...configOverride }
+        : config
       const payload = buildChatCompletionPayload(
         messages,
-        config,
+        requestConfig,
         parameterEnabled
       )
       sendStreamRequest(
@@ -127,10 +130,13 @@ export function useChatHandler({
 
   // Send non-streaming chat request
   const sendNonStreamingChat = useCallback(
-    async (messages: Message[]) => {
+    async (messages: Message[], configOverride?: Partial<PlaygroundConfig>) => {
+      const requestConfig = configOverride
+        ? { ...config, ...configOverride }
+        : config
       const payload = buildChatCompletionPayload(
         messages,
-        config,
+        requestConfig,
         parameterEnabled
       )
 
@@ -176,14 +182,17 @@ export function useChatHandler({
 
   // Send chat request (stream or non-stream based on config)
   const sendChat = useCallback(
-    (messages: Message[]) => {
-      if (config.stream) {
-        sendStreamingChat(messages)
+    (messages: Message[], configOverride?: Partial<PlaygroundConfig>) => {
+      const requestConfig = configOverride
+        ? { ...config, ...configOverride }
+        : config
+      if (requestConfig.stream) {
+        sendStreamingChat(messages, configOverride)
       } else {
-        sendNonStreamingChat(messages)
+        sendNonStreamingChat(messages, configOverride)
       }
     },
-    [config.stream, sendStreamingChat, sendNonStreamingChat]
+    [config, sendStreamingChat, sendNonStreamingChat]
   )
 
   // Stop generation

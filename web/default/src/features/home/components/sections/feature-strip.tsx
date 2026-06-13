@@ -60,7 +60,7 @@ const TONE_CLASSES: Record<string, string> = {
 }
 
 const CARD_CLASSES =
-  'group border-border/60 bg-background hover:border-blue-500/40 flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-md'
+  'group border-border/60 bg-background hover:border-blue-500/40 flex h-full min-h-[148px] flex-col items-start gap-2 rounded-xl border p-4 text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-md'
 
 export function FeatureStrip() {
   const { t } = useTranslation()
@@ -128,7 +128,7 @@ export function FeatureStrip() {
 
   return (
     <section className='relative z-10 px-6 pb-6'>
-      <div className='mx-auto grid max-w-6xl grid-cols-2 gap-3.5 sm:grid-cols-4 lg:grid-cols-7'>
+      <div className='mx-auto grid max-w-6xl auto-rows-fr grid-cols-2 gap-3.5 sm:grid-cols-4 lg:grid-cols-7'>
         {cards.map((card, i) => {
           const Icon = card.icon
           const inner = (
@@ -148,7 +148,12 @@ export function FeatureStrip() {
           )
 
           return (
-            <AnimateInView key={card.id} delay={i * 60} animation='fade-up'>
+            <AnimateInView
+              key={card.id}
+              className='h-full'
+              delay={i * 60}
+              animation='fade-up'
+            >
               {card.href !== undefined ? (
                 <a
                   href={card.href}

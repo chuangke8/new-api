@@ -1,0 +1,3 @@
+$ rsbuild dev --port "5173" --host "127.0.0.1"
+error   [browser] Uncaught TypeError: Cannot read properties of undefined (reading 'mode') (src\context\theme-provider.tsx:96:0)
+error   [browser] Uncaught TypeError: Cannot read properties of undefined (reading 'mode') (src\context\theme-provider.tsx:96:0)

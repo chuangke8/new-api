@@ -26,6 +26,7 @@ import {
   ContactCTA,
   FeatureStrip,
   Hero,
+  HomeContactFloatingActions,
   Ticker,
 } from './components'
 import { useHomePageContent } from './hooks'
@@ -62,6 +63,7 @@ export function Home() {
             </div>
           )}
         </main>
+        <HomeContactFloatingActions />
       </PublicLayout>
     )
   }
@@ -74,6 +76,7 @@ export function Home() {
       <Advantages />
       <ContactCTA isAuthenticated={isAuthenticated} />
       <Footer />
+      <HomeContactFloatingActions />
     </PublicLayout>
   )
 }

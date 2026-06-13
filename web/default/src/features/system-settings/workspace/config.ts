@@ -135,6 +135,12 @@ export const WORKSPACE_MANAGER_CONFIGS: Record<
         icon: Gauge,
       },
       {
+        key: 'typeControl',
+        labelKey: 'Type parameter',
+        descriptionKey: 'Send a fixed Type parameter configured in this channel.',
+        icon: Settings2,
+      },
+      {
         key: 'batchControl',
         labelKey: 'Generation count control',
         descriptionKey:
@@ -228,6 +234,12 @@ export const WORKSPACE_MANAGER_CONFIGS: Record<
         labelKey: 'Seed control',
         descriptionKey: 'Allow users to set deterministic seed values.',
         icon: Gauge,
+      },
+      {
+        key: 'typeControl',
+        labelKey: 'Type parameter',
+        descriptionKey: 'Send a fixed Type parameter configured in this channel.',
+        icon: Settings2,
       },
       {
         key: 'batchControl',
@@ -365,6 +377,7 @@ export const DEFAULT_VIDEO_FIELD_MAPPINGS = {
   referenceImage: 'reference_image',
   referenceImages: 'images',
   lastFrameImage: 'last_frame_image',
+  type: 'type',
   resolution: 'size',
   ratio: 'aspect_ratio',
   duration: 'duration',
@@ -485,7 +498,11 @@ export const createDefaultChannels = (
         cameraPresets: VIDEO_CAMERA_MOVEMENT_PRESETS,
         videoFieldMappings: { ...DEFAULT_VIDEO_FIELD_MAPPINGS },
         maxBatchSize: 1,
-        capabilities: enabledCapabilities(capabilityKeys),
+        capabilities: {
+          ...enabledCapabilities(capabilityKeys),
+          typeControl: false,
+        },
+        videoTypeValue: '',
         disabled: false,
         remark: 'Mock frontend configuration; backend persistence pending.',
       },
@@ -564,7 +581,11 @@ export const createEmptyChannel = (
       kind === 'image' ? { ...DEFAULT_IMAGE_FIELD_MAPPINGS } : undefined,
     videoFieldMappings:
       kind === 'video' ? { ...DEFAULT_VIDEO_FIELD_MAPPINGS } : undefined,
-    capabilities: enabledCapabilities(config.capabilities.map((item) => item.key)),
+    capabilities: {
+      ...enabledCapabilities(config.capabilities.map((item) => item.key)),
+      ...(kind === 'video' ? { typeControl: false } : {}),
+    },
+    videoTypeValue: kind === 'video' ? '' : undefined,
     disabled: false,
     remark: '',
   }

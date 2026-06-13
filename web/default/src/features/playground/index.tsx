@@ -49,6 +49,7 @@ import type {
   GroupOption,
   Message as MessageType,
   ModelOption,
+  PlaygroundConfig,
   WorkspaceChatMessage,
   WorkspaceChatMessageMetadata,
   WorkspaceChatSession,
@@ -451,7 +452,27 @@ export function Playground() {
     appliedMobileDefaultRef.current = true
   }, [isMobile])
 
+  const resolveRequestConfigForCurrentModel = useCallback(() => {
+    const currentModel =
+      models.find((item) => item.value === config.model) ||
+      visibleModels.find((item) => item.value === config.model)
+    const resolvedGroup = resolveGroupForModel(
+      currentModel,
+      groups,
+      config.group
+    )
+    const requestConfig: Partial<PlaygroundConfig> | undefined =
+      resolvedGroup && resolvedGroup !== config.group
+        ? { group: resolvedGroup }
+        : undefined
+    if (requestConfig?.group) {
+      updateConfig('group', requestConfig.group)
+    }
+    return requestConfig
+  }, [config.group, config.model, groups, models, updateConfig, visibleModels])
+
   const handleSendMessage = async (text: string, files: FileUIPart[] = []) => {
+    const requestConfig = resolveRequestConfigForCurrentModel()
     const sessionId = await ensureActiveSession()
     const imageUrls = files
       .filter((file) => file.mediaType?.startsWith('image/') && file.url)
@@ -493,7 +514,7 @@ export function Playground() {
     updateMessages(newMessages)
 
     // Send chat request
-    sendChat(newMessages)
+    sendChat(newMessages, requestConfig)
   }
 
   const handleCopyMessage = (message: MessageType) => {
@@ -513,7 +534,7 @@ export function Playground() {
     const newMessages = [...messagesUpToHere, loadingMessage]
 
     updateMessages(newMessages)
-    sendChat(newMessages)
+    sendChat(newMessages, resolveRequestConfigForCurrentModel())
   }
 
   const handleEditMessage = useCallback((message: MessageType) => {
@@ -549,9 +570,15 @@ export function Playground() {
         createLoadingAssistantMessage(),
       ]
       updateMessages(toSubmit)
-      sendChat(toSubmit)
+      sendChat(toSubmit, resolveRequestConfigForCurrentModel())
     },
-    [editingMessageKey, messages, updateMessages, sendChat]
+    [
+      editingMessageKey,
+      messages,
+      resolveRequestConfigForCurrentModel,
+      updateMessages,
+      sendChat,
+    ]
   )
 
   const handleDeleteMessage = (message: MessageType) => {

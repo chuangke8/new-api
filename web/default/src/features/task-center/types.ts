@@ -68,6 +68,10 @@ export type TaskCenterRecord = {
   raw_response?: string
   error_message?: string
   error_detail?: string
+  refund_status?: string
+  refund_quota?: number
+  refunded_at?: number
+  refund_error?: string
   created_at: number
   updated_at: number
 }

@@ -23,6 +23,7 @@ import {
   getCoreRowModel,
   getPaginationRowModel,
   getSortedRowModel,
+  type PaginationState,
   type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
@@ -244,6 +245,7 @@ function fromVideoFieldMappingsDto(
       parsed?.reference_images || DEFAULT_VIDEO_FIELD_MAPPINGS.referenceImages,
     lastFrameImage:
       parsed?.last_frame_image || DEFAULT_VIDEO_FIELD_MAPPINGS.lastFrameImage,
+    type: parsed?.type || DEFAULT_VIDEO_FIELD_MAPPINGS.type,
     resolution: parsed?.resolution || DEFAULT_VIDEO_FIELD_MAPPINGS.resolution,
     ratio: parsed?.ratio || DEFAULT_VIDEO_FIELD_MAPPINGS.ratio,
     duration: parsed?.duration || DEFAULT_VIDEO_FIELD_MAPPINGS.duration,
@@ -438,6 +440,8 @@ function fromVideoChannelDto(channel: WorkspaceVideoChannelDto): WorkspaceChanne
     camera_control: true,
     seed_control: true,
     batch_control: true,
+    type_control: false,
+    type_value: '',
   }
   const controls = {
     ...defaultControls,
@@ -504,7 +508,9 @@ function fromVideoChannelDto(channel: WorkspaceVideoChannelDto): WorkspaceChanne
       cameraControl: controls.camera_control,
       seedControl: controls.seed_control,
       batchControl: controls.batch_control,
+      typeControl: controls.type_control,
     } as WorkspaceChannel['capabilities'],
+    videoTypeValue: controls.type_value || '',
     disabled: channel.disabled,
     remark: channel.remark,
   }
@@ -606,6 +612,8 @@ function toVideoChannelDto(channel: WorkspaceChannel) {
       camera_control: Boolean(channel.capabilities.cameraControl),
       seed_control: Boolean(channel.capabilities.seedControl),
       batch_control: Boolean(channel.capabilities.batchControl),
+      type_control: Boolean(channel.capabilities.typeControl),
+      type_value: channel.videoTypeValue || '',
     },
     field_mappings: {
       first_frame_image:
@@ -620,6 +628,7 @@ function toVideoChannelDto(channel: WorkspaceChannel) {
       last_frame_image:
         channel.videoFieldMappings?.lastFrameImage ||
         DEFAULT_VIDEO_FIELD_MAPPINGS.lastFrameImage,
+      type: channel.videoFieldMappings?.type || DEFAULT_VIDEO_FIELD_MAPPINGS.type,
       resolution:
         channel.videoFieldMappings?.resolution ||
         DEFAULT_VIDEO_FIELD_MAPPINGS.resolution,
@@ -1238,6 +1247,10 @@ function WorkspaceChannelsTable(props: {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'weight', desc: true },
   ])
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  })
   const zhLanguage = isZhLanguage(i18n.language)
 
   const categoryMap = useMemo(
@@ -1485,8 +1498,10 @@ function WorkspaceChannelsTable(props: {
   const table = useReactTable({
     data: props.channels,
     columns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    autoResetPageIndex: false,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -1525,6 +1540,10 @@ function WorkspaceCategoriesTable(props: {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'weight', desc: true },
   ])
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  })
 
   const columns = useMemo<ColumnDef<WorkspaceChannelCategory>[]>(
     () => [
@@ -1613,8 +1632,10 @@ function WorkspaceCategoriesTable(props: {
   const table = useReactTable({
     data: props.categories,
     columns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    autoResetPageIndex: false,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -1978,6 +1999,17 @@ function ChannelDialog(props: {
               })}
             </div>
           </div>
+          {kind === 'video' && draft.capabilities.typeControl && (
+            <Field label={t('Type value')}>
+              <Input
+                value={draft.videoTypeValue || ''}
+                placeholder={t('Enter upstream Type value')}
+                onChange={(event) =>
+                  setDraft({ ...draft, videoTypeValue: event.target.value })
+                }
+              />
+            </Field>
+          )}
           {kind === 'image' && (
             <div className='grid gap-5 sm:grid-cols-2'>
               <StringPresetEditor
@@ -2211,6 +2243,11 @@ function VideoFieldMappingEditor(props: {
       key: 'lastFrameImage',
       label: 'Last frame image field',
       placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.lastFrameImage,
+    },
+    {
+      key: 'type',
+      label: 'Type field',
+      placeholder: DEFAULT_VIDEO_FIELD_MAPPINGS.type,
     },
     {
       key: 'resolution',

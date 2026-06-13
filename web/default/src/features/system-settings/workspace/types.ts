@@ -39,6 +39,7 @@ export type WorkspaceCapabilityKey =
   | 'audioTrack'
   | 'cameraControl'
   | 'seedControl'
+  | 'typeControl'
 
 export type WorkspaceCapabilityConfig = {
   key: WorkspaceCapabilityKey
@@ -63,6 +64,7 @@ export type WorkspaceChannel = {
   videoFieldMappings?: WorkspaceVideoFieldMappings
   durationPresets?: string[]
   frameRatePresets?: string[]
+  videoTypeValue?: string
   capabilities: Record<WorkspaceCapabilityKey, boolean>
   disabled: boolean
   remark: string
@@ -83,6 +85,7 @@ export type WorkspaceVideoFieldMappings = {
   referenceImage: string
   referenceImages: string
   lastFrameImage: string
+  type: string
   resolution: string
   ratio: string
   duration: string

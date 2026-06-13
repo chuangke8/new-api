@@ -46,6 +46,7 @@ func TestMain(m *testing.M) {
 		&SubscriptionOrder{},
 		&UserSubscription{},
 		&PerfMetric{},
+		&TaskCenter{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -67,6 +68,7 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM user_subscriptions")
 		DB.Exec("DELETE FROM perf_metrics")
+		DB.Exec("DELETE FROM task_centers")
 	})
 }
 
@@ -75,6 +77,56 @@ func insertTask(t *testing.T, task *Task) {
 	task.CreatedAt = time.Now().Unix()
 	task.UpdatedAt = time.Now().Unix()
 	require.NoError(t, DB.Create(task).Error)
+}
+
+func insertTaskCenter(t *testing.T, record *TaskCenter) {
+	t.Helper()
+	now := time.Now().Unix()
+	if record.CreatedAt == 0 {
+		record.CreatedAt = now
+	}
+	if record.UpdatedAt == 0 {
+		record.UpdatedAt = now
+	}
+	require.NoError(t, DB.Create(record).Error)
+}
+
+func TestStopTaskCenterByID_RefundResultIsRecordedAndNotOverwritten(t *testing.T) {
+	truncateTables(t)
+
+	insertTaskCenter(t, &TaskCenter{
+		Source:           TaskCenterSourceWorkspaceImage,
+		SubmitSource:     TaskCenterSubmitSourceWorkspace,
+		TaskID:           "task-center-refund-guard",
+		UserID:           1001,
+		UsernameSnapshot: "refund-user",
+		TaskType:         TaskCenterTypeImage,
+		Model:            "test-model",
+		Status:           "running",
+		Cost:             123,
+		SubmittedAt:      time.Now().Unix(),
+	})
+
+	record, stopped, err := StopTaskCenterByID(1, 1001, true, "manual stop")
+	require.NoError(t, err)
+	require.True(t, stopped)
+	require.NotNil(t, record)
+	assert.Equal(t, "cancelled", record.Status)
+	assert.Equal(t, TaskCenterRefundStatusPending, record.RefundStatus)
+
+	require.NoError(t, UpdateTaskCenterRefundResult(record.ID, TaskCenterRefundStatusSuccess, 123, ""))
+
+	record, stopped, err = StopTaskCenterByID(record.ID, 1001, true, "manual stop again")
+	require.NoError(t, err)
+	require.False(t, stopped)
+	require.NotNil(t, record)
+
+	var persisted TaskCenter
+	require.NoError(t, DB.Where("id = ?", record.ID).First(&persisted).Error)
+	assert.Equal(t, "cancelled", persisted.Status)
+	assert.Equal(t, TaskCenterRefundStatusSuccess, persisted.RefundStatus)
+	assert.Equal(t, 123, persisted.RefundQuota)
+	assert.NotZero(t, persisted.RefundedAt)
 }
 
 // ---------------------------------------------------------------------------

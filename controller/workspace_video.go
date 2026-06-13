@@ -233,24 +233,24 @@ func GetWorkspaceVideoModels(c *gin.Context) {
 	common.ApiSuccess(c, models)
 }
 
-func readWorkspaceVideoGenerationRequest(c *gin.Context) (relaycommon.TaskSubmitReq, error) {
+func readWorkspaceVideoGenerationRequest(c *gin.Context) (relaycommon.TaskSubmitReq, string, error) {
 	var request relaycommon.TaskSubmitReq
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
-		return request, err
+		return request, "", err
 	}
 	requestBody, err := storage.Bytes()
 	if err != nil {
-		return request, err
+		return request, "", err
 	}
 	if err := common.Unmarshal(requestBody, &request); err != nil {
-		return request, err
+		return request, string(requestBody), err
 	}
 	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
-		return request, seekErr
+		return request, string(requestBody), seekErr
 	}
 	c.Request.Body = io.NopCloser(storage)
-	return request, nil
+	return request, string(requestBody), nil
 }
 
 func workspaceVideoMetadataHas(metadata map[string]interface{}, keys ...string) bool {
@@ -304,6 +304,199 @@ func workspaceVideoMappedTarget(field string) string {
 	return strings.TrimSpace(target)
 }
 
+func workspaceVideoRawField(raw map[string]any, field string) (any, bool) {
+	field = strings.TrimSpace(field)
+	if field == "" {
+		return nil, false
+	}
+	if value, ok := raw[field]; ok && value != nil {
+		if s, ok := value.(string); ok && strings.TrimSpace(s) == "" {
+			return nil, false
+		}
+		return value, true
+	}
+	metadata, _ := raw["metadata"].(map[string]any)
+	if metadata == nil {
+		return nil, false
+	}
+	field = strings.TrimPrefix(field, "metadata.")
+	value, ok := metadata[field]
+	if !ok || value == nil {
+		return nil, false
+	}
+	if s, ok := value.(string); ok && strings.TrimSpace(s) == "" {
+		return nil, false
+	}
+	return value, true
+}
+
+func workspaceVideoFirstRawField(raw map[string]any, fields ...string) (any, bool) {
+	for _, field := range fields {
+		if value, ok := workspaceVideoRawField(raw, field); ok {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func setWorkspaceVideoMappedField(request *relaycommon.TaskSubmitReq, targetField string, value any) {
+	if request == nil || value == nil {
+		return
+	}
+	target := workspaceVideoMappedTarget(targetField)
+	if target == "" {
+		return
+	}
+	switch target {
+	case "image":
+		if s, ok := value.(string); ok {
+			request.Image = s
+		}
+	case "images":
+		switch v := value.(type) {
+		case []string:
+			request.Images = v
+		case []any:
+			images := make([]string, 0, len(v))
+			for _, item := range v {
+				if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+					images = append(images, s)
+				}
+			}
+			request.Images = images
+		case string:
+			if strings.TrimSpace(v) != "" {
+				request.Images = []string{v}
+			}
+		}
+	case "size":
+		if s, ok := value.(string); ok {
+			request.Size = s
+		}
+	case "type":
+		request.Type = value
+		if request.Metadata == nil {
+			request.Metadata = map[string]interface{}{}
+		}
+		request.Metadata[target] = value
+	case "duration":
+		switch v := value.(type) {
+		case float64:
+			request.Duration = int(v)
+		case int:
+			request.Duration = v
+		case string:
+			var parsed int
+			if _, err := fmt.Sscanf(strings.TrimSpace(v), "%d", &parsed); err == nil {
+				request.Duration = parsed
+			}
+		}
+	case "seconds":
+		request.Seconds = fmt.Sprint(value)
+	case "input_reference":
+		if s, ok := value.(string); ok {
+			request.InputReference = s
+		}
+	default:
+		if request.Metadata == nil {
+			request.Metadata = map[string]interface{}{}
+		}
+		request.Metadata[target] = value
+	}
+}
+
+func clearWorkspaceVideoMappedField(request *relaycommon.TaskSubmitReq, targetField string) {
+	if request == nil {
+		return
+	}
+	target := workspaceVideoMappedTarget(targetField)
+	if target == "" {
+		return
+	}
+	request.Type = nil
+	if request.Metadata != nil {
+		delete(request.Metadata, "type")
+	}
+	switch target {
+	case "type":
+	default:
+		if request.Metadata != nil {
+			delete(request.Metadata, target)
+		}
+	}
+}
+
+func workspaceVideoControlValue(value string) any {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	var parsed any
+	if err := common.Unmarshal([]byte(value), &parsed); err == nil {
+		return parsed
+	}
+	return value
+}
+
+func applyWorkspaceVideoMappedFields(c *gin.Context, request *relaycommon.TaskSubmitReq, rawRequest string, channel *model.WorkspaceVideoModel) error {
+	if request == nil || channel == nil || strings.TrimSpace(rawRequest) == "" {
+		return nil
+	}
+	var raw map[string]any
+	if err := common.Unmarshal([]byte(rawRequest), &raw); err != nil {
+		return err
+	}
+	controls := channel.FeatureControls
+	mappings := model.NormalizeWorkspaceVideoFieldMappings(channel.FieldMappings)
+	addMapped := func(enabled bool, targetField string, sourceFields ...string) {
+		if !enabled {
+			return
+		}
+		targetField = strings.TrimSpace(targetField)
+		if targetField == "" {
+			return
+		}
+		sourceFields = append(sourceFields, targetField)
+		if value, ok := workspaceVideoFirstRawField(raw, sourceFields...); ok {
+			setWorkspaceVideoMappedField(request, targetField, value)
+		}
+	}
+	addMapped(controls.ReferenceImageUpload, mappings.ReferenceImage, "reference_image", "image")
+	addMapped(controls.ReferenceImageUpload, mappings.ReferenceImages, "reference_images", "images")
+	addMapped(controls.FirstFrameImage, mappings.FirstFrameImage, "first_frame_image", "image")
+	addMapped(controls.LastFrameImage, mappings.LastFrameImage, "last_frame_image")
+	clearWorkspaceVideoMappedField(request, mappings.Type)
+	if controls.TypeControl {
+		setWorkspaceVideoMappedField(request, mappings.Type, workspaceVideoControlValue(controls.TypeValue))
+	}
+	addMapped(controls.ResolutionControl, mappings.Resolution, "resolution", "size")
+	addMapped(controls.RatioControl, mappings.Ratio, "ratio", "aspect_ratio", "aspectRatio")
+	addMapped(controls.DurationControl, mappings.Duration, "duration", "seconds")
+	addMapped(controls.FrameRateControl, mappings.FrameRate, "frame_rate", "fps")
+	addMapped(controls.StyleControl, mappings.Style, "style")
+	addMapped(controls.QualityControl, mappings.Quality, "quality", "quality_level")
+	addMapped(controls.NegativePrompt, mappings.NegativePrompt, "negative_prompt")
+	addMapped(controls.AudioTrack, mappings.Audio, "audio", "audio_track", "generate_audio")
+	addMapped(controls.CameraControl, mappings.CameraMovement, "camera_movement", "camera_control", "camera")
+	addMapped(controls.SeedControl, mappings.Seed, "seed")
+	body, err := common.Marshal(request)
+	if err != nil {
+		return err
+	}
+	oldStorage, _ := c.Get(common.KeyBodyStorage)
+	storage, err := common.CreateBodyStorage(body)
+	if err != nil {
+		return err
+	}
+	c.Set(common.KeyBodyStorage, storage)
+	c.Request.Body = io.NopCloser(storage)
+	c.Request.ContentLength = int64(len(body))
+	if old, ok := oldStorage.(common.BodyStorage); ok {
+		_ = old.Close()
+	}
+	return nil
+}
+
 func workspaceVideoMappedRequestHas(request relaycommon.TaskSubmitReq, fields ...string) bool {
 	for _, field := range fields {
 		target := workspaceVideoMappedTarget(field)
@@ -321,6 +514,10 @@ func workspaceVideoMappedRequestHas(request relaycommon.TaskSubmitReq, fields ..
 			}
 		case "size":
 			if strings.TrimSpace(request.Size) != "" {
+				return true
+			}
+		case "type":
+			if request.Type != nil {
 				return true
 			}
 		case "duration":
@@ -462,8 +659,17 @@ func GenerateWorkspaceVideo(c *gin.Context) {
 		return
 	}
 
-	videoRequest, err := readWorkspaceVideoGenerationRequest(c)
+	videoRequest, rawRequest, err := readWorkspaceVideoGenerationRequest(c)
 	if err != nil {
+		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		return
+	}
+	videoChannel, err := model.GetWorkspaceVideoModel(videoRequest.Model)
+	if err != nil {
+		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		return
+	}
+	if err := applyWorkspaceVideoMappedFields(c, &videoRequest, rawRequest, videoChannel); err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
 	}

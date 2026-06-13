@@ -205,8 +205,17 @@ func EstimateWorkspaceVideoGeneration(c *gin.Context) {
 		return
 	}
 
-	videoRequest, err := readWorkspaceVideoGenerationRequest(c)
+	videoRequest, rawRequest, err := readWorkspaceVideoGenerationRequest(c)
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	videoChannel, err := model.GetWorkspaceVideoModel(videoRequest.Model)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := applyWorkspaceVideoMappedFields(c, &videoRequest, rawRequest, videoChannel); err != nil {
 		common.ApiError(c, err)
 		return
 	}

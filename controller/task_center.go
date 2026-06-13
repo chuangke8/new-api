@@ -36,6 +36,10 @@ type taskCenterResponse struct {
 	RawResponse      string `json:"raw_response,omitempty"`
 	ErrorMessage     string `json:"error_message"`
 	ErrorDetail      string `json:"error_detail,omitempty"`
+	RefundStatus     string `json:"refund_status"`
+	RefundQuota      int    `json:"refund_quota"`
+	RefundedAt       int64  `json:"refunded_at"`
+	RefundError      string `json:"refund_error,omitempty"`
 	CreatedAt        int64  `json:"created_at"`
 	UpdatedAt        int64  `json:"updated_at"`
 }
@@ -122,6 +126,9 @@ func taskCenterToResponse(record *model.TaskCenter, includeAdminFields bool) tas
 		CompletedAt:      record.CompletedAt,
 		Detail:           taskCenterDetailForRole(record.Detail, includeAdminFields),
 		ErrorMessage:     record.ErrorMessage,
+		RefundStatus:     record.RefundStatus,
+		RefundQuota:      record.RefundQuota,
+		RefundedAt:       record.RefundedAt,
 		CreatedAt:        record.CreatedAt,
 		UpdatedAt:        record.UpdatedAt,
 	}
@@ -129,6 +136,7 @@ func taskCenterToResponse(record *model.TaskCenter, includeAdminFields bool) tas
 		response.RawRequest = record.RawRequest
 		response.RawResponse = record.RawResponse
 		response.ErrorDetail = record.ErrorDetail
+		response.RefundError = record.RefundError
 	}
 	return response
 }
@@ -251,8 +259,18 @@ func stopTaskCenter(c *gin.Context, id int64) stopTaskCenterResult {
 	}
 	refunded, err := refundStoppedTaskCenter(c, record, reason)
 	if err != nil {
+		if updateErr := model.UpdateTaskCenterRefundResult(record.ID, model.TaskCenterRefundStatusFailed, 0, err.Error()); updateErr != nil {
+			logger.LogWarn(c, fmt.Sprintf("failed to mark task center refund failure id=%d task_id=%s: %s", record.ID, record.TaskID, updateErr.Error()))
+		}
 		result.Message = "stopped but refund failed: " + err.Error()
 		return result
+	}
+	refundStatus := model.TaskCenterRefundStatusNone
+	if refunded > 0 {
+		refundStatus = model.TaskCenterRefundStatusSuccess
+	}
+	if err := model.UpdateTaskCenterRefundResult(record.ID, refundStatus, refunded, ""); err != nil {
+		logger.LogWarn(c, fmt.Sprintf("failed to mark task center refund result id=%d task_id=%s: %s", record.ID, record.TaskID, err.Error()))
 	}
 	result.Stopped = true
 	result.RefundedQuota = refunded

@@ -41,6 +41,13 @@ const (
 )
 
 const (
+	TaskCenterRefundStatusNone    = "none"
+	TaskCenterRefundStatusPending = "pending"
+	TaskCenterRefundStatusSuccess = "success"
+	TaskCenterRefundStatusFailed  = "failed"
+)
+
+const (
 	taskCenterAssetRoot       = "data/task-center"
 	TaskCenterAssetURLPrefix  = "/api/task-center-assets"
 	taskCenterAssetMaxBytes   = 512 * 1024 * 1024
@@ -72,6 +79,10 @@ type TaskCenter struct {
 	RawResponse      string         `json:"raw_response,omitempty" gorm:"type:text"`
 	ErrorMessage     string         `json:"error_message" gorm:"type:text"`
 	ErrorDetail      string         `json:"error_detail,omitempty" gorm:"type:text"`
+	RefundStatus     string         `json:"refund_status" gorm:"type:varchar(32);index;default:'none'"`
+	RefundQuota      int            `json:"refund_quota" gorm:"default:0"`
+	RefundedAt       int64          `json:"refunded_at" gorm:"index;default:0"`
+	RefundError      string         `json:"refund_error,omitempty" gorm:"type:text"`
 }
 
 type TaskCenterQueryParams struct {
@@ -1332,6 +1343,10 @@ func StopTaskCenterByID(id int64, userID int, admin bool, reason string) (*TaskC
 		return nil, false, gorm.ErrRecordNotFound
 	}
 	now := time.Now().Unix()
+	refundStatus := TaskCenterRefundStatusNone
+	if record.Cost > 0 {
+		refundStatus = TaskCenterRefundStatusPending
+	}
 	result := DB.Model(&TaskCenter{}).
 		Where("id = ?", record.ID).
 		Where("status IN ?", []string{"pending", "running"}).
@@ -1340,6 +1355,10 @@ func StopTaskCenterByID(id int64, userID int, admin bool, reason string) (*TaskC
 			"completed_at":  now,
 			"error_message": reason,
 			"error_detail":  reason,
+			"refund_status": refundStatus,
+			"refund_quota":  0,
+			"refunded_at":   0,
+			"refund_error":  "",
 			"updated_at":    now,
 		})
 	if result.Error != nil {
@@ -1352,8 +1371,29 @@ func StopTaskCenterByID(id int64, userID int, admin bool, reason string) (*TaskC
 	record.CompletedAt = now
 	record.ErrorMessage = reason
 	record.ErrorDetail = reason
+	record.RefundStatus = refundStatus
+	record.RefundQuota = 0
+	record.RefundedAt = 0
+	record.RefundError = ""
 	record.UpdatedAt = now
 	return &record, true, nil
+}
+
+func UpdateTaskCenterRefundResult(id int64, status string, quota int, errMessage string) error {
+	if id <= 0 {
+		return gorm.ErrRecordNotFound
+	}
+	now := time.Now().Unix()
+	updates := map[string]any{
+		"refund_status": status,
+		"refund_quota":  quota,
+		"refund_error":  errMessage,
+		"updated_at":    now,
+	}
+	if status == TaskCenterRefundStatusSuccess || status == TaskCenterRefundStatusFailed {
+		updates["refunded_at"] = now
+	}
+	return DB.Model(&TaskCenter{}).Where("id = ?", id).Updates(updates).Error
 }
 
 func UpdateTaskCenterRemark(id int64, userID int, admin bool, remark string) error {

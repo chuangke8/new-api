@@ -20,7 +20,7 @@ import { useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowRight, Loader2 } from 'lucide-react'
+import { ArrowRight, Loader2, Mail } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -37,6 +37,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { Turnstile } from '@/components/turnstile'
 import { sendPasswordResetEmail } from '@/features/auth/api'
+import {
+  AUTH_BUTTON_CLASS,
+  AUTH_ICON_CLASS,
+  AUTH_ICON_INPUT_CLASS,
+} from '@/features/auth/components/auth-form-styles'
 import {
   forgotPasswordFormSchema,
   PASSWORD_RESET_COUNTDOWN,
@@ -101,10 +106,17 @@ export function ForgotPasswordForm({
           name='email'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input placeholder='name@example.com' {...field} />
-              </FormControl>
+              <FormLabel>{t('Email')}</FormLabel>
+              <div className='relative'>
+                <Mail className={AUTH_ICON_CLASS} />
+                <FormControl>
+                  <Input
+                    placeholder={t('name@example.com')}
+                    className={AUTH_ICON_INPUT_CLASS}
+                    {...field}
+                  />
+                </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -112,7 +124,7 @@ export function ForgotPasswordForm({
 
         <Button
           type='submit'
-          className='mt-2'
+          className={cn(AUTH_BUTTON_CLASS, 'mt-2 w-full justify-center gap-2')}
           disabled={isLoading || isActive || !turnstileReady}
         >
           {isActive

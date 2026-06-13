@@ -23,12 +23,17 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { cn } from '@/lib/utils'
 import { useCountdown } from '@/hooks/use-countdown'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AuthLayout } from '../auth-layout'
+import {
+  AUTH_BUTTON_CLASS,
+  AUTH_INPUT_CLASS,
+} from '../components/auth-form-styles'
 
 export type ResetPasswordSearchParams = {
   email?: string
@@ -105,12 +110,12 @@ export function ResetPasswordConfirm({
 
   return (
     <AuthLayout>
-      <div className='w-full space-y-8'>
-        <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
+      <div className='w-full space-y-6'>
+        <div className='space-y-2 text-center'>
+          <h2 className='text-2xl font-semibold tracking-tight'>
             {t('Reset password')}
           </h2>
-          <p className='text-muted-foreground text-left text-sm sm:text-base'>
+          <p className='text-muted-foreground text-sm'>
             {newPassword
               ? t('auth.resetPasswordConfirm.success')
               : t('auth.resetPasswordConfirm.description')}
@@ -134,6 +139,7 @@ export function ResetPasswordConfirm({
               value={email || ''}
               disabled
               placeholder={t('Waiting for email...')}
+              className={AUTH_INPUT_CLASS}
             />
           </div>
 
@@ -145,7 +151,7 @@ export function ResetPasswordConfirm({
                   id='password'
                   value={newPassword}
                   disabled
-                  className='font-mono'
+                  className={cn(AUTH_INPUT_CLASS, 'font-mono')}
                 />
                 <Button
                   type='button'
@@ -167,7 +173,7 @@ export function ResetPasswordConfirm({
           )}
 
           <Button
-            className='w-full'
+            className={cn(AUTH_BUTTON_CLASS, 'w-full justify-center')}
             onClick={
               newPassword
                 ? () => navigate({ to: '/sign-in', replace: true })

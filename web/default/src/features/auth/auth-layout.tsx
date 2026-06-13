@@ -30,33 +30,45 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const { systemName, logo, loading } = useSystemConfig()
 
   return (
-    <div className='relative grid h-svh max-w-none'>
-      <Link
-        to='/'
-        className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
-      >
-        <div className='relative h-8 w-8'>
-          {loading ? (
-            <Skeleton className='absolute inset-0 rounded-full' />
-          ) : (
-            <img
-              src={logo}
-              alt={t('Logo')}
-              className='h-8 w-8 rounded-full object-cover'
-            />
-          )}
-        </div>
-        {loading ? (
-          <Skeleton className='h-6 w-24' />
-        ) : (
-          <h1 className='text-xl font-medium'>{systemName}</h1>
-        )}
-      </Link>
-      <div className='container flex items-center pt-16 sm:pt-0'>
-        <div className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
+    <div className='bg-background relative grid min-h-svh overflow-hidden px-4 py-8'>
+      <div className='pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border)/0.42)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.42)_1px,transparent_1px)] bg-[size:56px_56px] dark:bg-[linear-gradient(to_right,hsl(var(--border)/0.24)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.24)_1px,transparent_1px)]' />
+      <div className='bg-primary/12 dark:bg-primary/8 pointer-events-none absolute top-[-16rem] left-1/2 h-[30rem] w-[30rem] -translate-x-1/2 rounded-full blur-3xl' />
+      <div className='pointer-events-none absolute right-[-10rem] bottom-[-12rem] h-[24rem] w-[24rem] rounded-full bg-emerald-500/10 blur-3xl dark:bg-emerald-400/5' />
+
+      <main className='relative z-10 mx-auto flex w-full max-w-[420px] flex-col items-center justify-center gap-5'>
+        <Link
+          to='/'
+          className='flex flex-col items-center gap-3 text-center transition-opacity hover:opacity-85'
+        >
+          <div className='border-background/80 bg-card shadow-primary/10 relative h-14 w-14 rounded-2xl border p-1.5 shadow-xl'>
+            {loading ? (
+              <Skeleton className='absolute inset-1.5 rounded-xl' />
+            ) : (
+              <img
+                src={logo}
+                alt={t('Logo')}
+                className='h-full w-full rounded-xl object-cover'
+              />
+            )}
+          </div>
+          <div className='space-y-1'>
+            {loading ? (
+              <Skeleton className='mx-auto h-7 w-36' />
+            ) : (
+              <h1 className='text-primary text-2xl font-semibold'>
+                {systemName}
+              </h1>
+            )}
+            <p className='text-muted-foreground text-sm'>
+              {t('Secure access for AI API services')}
+            </p>
+          </div>
+        </Link>
+
+        <div className='bg-card/90 border-border/60 w-full rounded-2xl border p-6 shadow-2xl shadow-black/10 backdrop-blur-xl sm:p-7 dark:shadow-black/35'>
           {children}
         </div>
-      </div>
+      </main>
     </div>
   )
 }

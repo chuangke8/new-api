@@ -665,3 +665,293 @@
 [SYS] 2026/06/14 - 01:52:49 | syncing options from database 
 [SYS] 2026/06/14 - 01:52:49 | 任务进度轮询开始 
 [SYS] 2026/06/14 - 01:52:49 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 01:52:53 | api | 202606131752535916003008268d9d6WhMXwIjw | 200 |            0s |             ::1 |     GET /api/home_page_content
+[GIN] 2026/06/14 - 01:53:02 | api | 202606131753029387627008268d9d6a5Ix5ZfK | 304 |            0s |             ::1 |     GET /api/contact-assets/wechat_qr_image/c9d825997e91967ffa440880454b2d49.png
+[SYS] 2026/06/14 - 01:53:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:53:04 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 01:53:04 | api | 202606131753049885438008268d9d6510rIoO1 | 304 |            0s |             ::1 |     GET /api/contact-assets/support_qr_image/c5466efb8582471204568ad2eb9d03e2.png
+[SYS] 2026/06/14 - 01:53:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:53:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:53:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:53:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:53:49 | syncing options from database 
+[SYS] 2026/06/14 - 01:53:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:53:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:54:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:54:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:54:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:54:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:54:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:54:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:54:49 | syncing options from database 
+[SYS] 2026/06/14 - 01:54:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:54:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:55:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:55:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:55:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:55:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:55:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:55:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:55:49 | syncing options from database 
+[SYS] 2026/06/14 - 01:55:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:55:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:56:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:56:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:56:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:56:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:56:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:56:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:56:49 | 正在更新数据看板数据... 
+[SYS] 2026/06/14 - 01:56:49 | 保存数据看板数据成功，共保存0条数据 
+[SYS] 2026/06/14 - 01:56:49 | syncing options from database 
+[SYS] 2026/06/14 - 01:56:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:56:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:57:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:57:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:57:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:57:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:57:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:57:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:57:49 | syncing options from database 
+[SYS] 2026/06/14 - 01:57:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:57:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:58:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:58:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:58:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:58:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:58:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:58:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:58:49 | syncing options from database 
+[SYS] 2026/06/14 - 01:58:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:58:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:59:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:59:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:59:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:59:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:59:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:59:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 01:59:49 | syncing options from database 
+[SYS] 2026/06/14 - 01:59:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 01:59:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:00:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:00:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:00:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:00:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:00:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:00:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:00:49 | syncing options from database 
+[SYS] 2026/06/14 - 02:00:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:00:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:01:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:01:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:01:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:01:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:01:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:01:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:01:49 | 正在更新数据看板数据... 
+[SYS] 2026/06/14 - 02:01:49 | 保存数据看板数据成功，共保存0条数据 
+[SYS] 2026/06/14 - 02:01:49 | syncing options from database 
+[SYS] 2026/06/14 - 02:01:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:01:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:02:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:02:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:02:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:02:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:02:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:02:34 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:02:45 | api | 202606131802459133609008268d9d6UachJaL6 | 200 |       504.6µs |             ::1 |     GET /api/status
+[SYS] 2026/06/14 - 02:02:49 | syncing options from database 
+[SYS] 2026/06/14 - 02:02:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:02:49 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:02:52 | api | 202606131802523348775008268d9d6gn8j0ujN | 200 |            0s |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 02:02:58 | api | 202606131802581204312008268d9d66Kz6t4xo | 200 |       520.4µs |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 02:02:58 | api | 202606131802583248678008268d9d6q9poy9Dt | 200 |       506.4µs |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 02:02:58 | api | 202606131802584202933008268d9d62YlDyPla | 200 |            0s |             ::1 |     GET /api/notice
+[GIN] 2026/06/14 - 02:02:58 | api | 202606131802584202933008268d9d6c6PnpaNr | 200 |       505.1µs |             ::1 |     GET /api/home_page_content
+[SYS] 2026/06/14 - 02:03:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:03:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:03:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:03:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:03:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:03:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:03:49 | syncing options from database 
+[SYS] 2026/06/14 - 02:03:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:03:49 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:04:03 | api | 202606131804034998335008268d9d6626A66c7 | 200 |            0s |             ::1 |     GET /api/status
+[SYS] 2026/06/14 - 02:04:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:04:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:04:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:04:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:04:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:04:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:04:49 | syncing options from database 
+[SYS] 2026/06/14 - 02:04:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:04:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:05:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:05:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:05:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:05:19 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:05:25 | api | 202606131805252765072008268d9d6HHAEdbuF | 200 |       507.6µs |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 02:05:25 | api | 202606131805257941573008268d9d6ovO5GFgP | 200 |            0s |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 02:05:25 | api | 202606131805258774511008268d9d6tXswFTS8 | 200 |            0s |             ::1 |     GET /api/notice
+[GIN] 2026/06/14 - 02:05:25 | api | 202606131805258774511008268d9d6QgVVgJ4a | 200 |       503.4µs |             ::1 |     GET /api/home_page_content
+[SYS] 2026/06/14 - 02:05:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:05:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:05:49 | syncing options from database 
+[SYS] 2026/06/14 - 02:05:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:05:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:06:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:06:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:06:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:06:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:06:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:06:34 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:06:49 | 正在更新数据看板数据... 
+[SYS] 2026/06/14 - 02:06:49 | 保存数据看板数据成功，共保存0条数据 
+[SYS] 2026/06/14 - 02:06:49 | syncing options from database 
+[SYS] 2026/06/14 - 02:06:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:06:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:07:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:07:04 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:07:06 | api | 202606131807064487637008268d9d6SwhROL2x | 200 |       504.4µs |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 02:07:12 | api | 202606131807127203060008268d9d6G6NCzbkA | 200 |            0s |             ::1 |     GET /api/notice
+[GIN] 2026/06/14 - 02:07:12 | api | 202606131807127203060008268d9d6lDGuSedy | 200 |       507.1µs |             ::1 |     GET /api/home_page_content
+[SYS] 2026/06/14 - 02:07:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:07:19 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:07:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:07:34 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:07:45 | api | 202606131807451216084008268d9d6do5rmw2I | 200 |            0s |             ::1 |     GET /api/status
+[GIN] 2026/06/14 - 02:07:45 | api | 202606131807452098242008268d9d63xTGPmgG | 200 |            0s |             ::1 |     GET /api/notice
+[GIN] 2026/06/14 - 02:07:45 | api | 202606131807452098242008268d9d6dyMTPEWx | 200 |       772.7µs |             ::1 |     GET /api/home_page_content
+[SYS] 2026/06/14 - 02:07:49 | syncing options from database 
+[SYS] 2026/06/14 - 02:07:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:07:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:08:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:08:04 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:08:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:08:19 | 任务进度轮询完成 
+
+2026/06/14 02:08:26 [31;1mE:/XM/new-api/model/twofa.go:45 [35;1mrecord not found
+[0m[33m[1.001ms] [34;1m[rows:0][0m SELECT * FROM `two_fas` WHERE user_id = 1 AND `two_fas`.`deleted_at` IS NULL ORDER BY `two_fas`.`id` LIMIT 1
+[GIN] 2026/06/14 - 02:08:26 | api | 202606131808267279909008268d9d6b5lriCrw | 200 |     58.6845ms |             ::1 |    POST /api/user/login?turnstile=
+[GIN] 2026/06/14 - 02:08:26 | api | 202606131808267923996008268d9d6uDSMKhsK | 200 |            0s |             ::1 |     GET /api/user/self
+[GIN] 2026/06/14 - 02:08:26 | api | 202606131808268184292008268d9d6OMOOcn3t | 200 |       505.9µs |             ::1 |     GET /api/user/self
+[GIN] 2026/06/14 - 02:08:26 | api | 202606131808269529730008268d9d6PxzASjNQ | 200 |       507.1µs |             ::1 |     GET /api/data/self?start_timestamp=1781291306&end_timestamp=1781377706&default_time=hour
+[GIN] 2026/06/14 - 02:08:26 | api | 202606131808269534801008268d9d6esVfBnf7 | 200 |       537.7µs |             ::1 |     GET /api/perf-metrics/summary?hours=24
+[GIN] 2026/06/14 - 02:08:26 | api | 202606131808269534801008268d9d68EcUHKvu | 200 |       537.7µs |             ::1 |     GET /api/uptime/status
+[GIN] 2026/06/14 - 02:08:26 | api | 202606131808269554007008268d9d6LRn0wPqj | 200 |            0s |             ::1 |     GET /api/token/?p=1&size=10
+[GIN] 2026/06/14 - 02:08:26 | api | 202606131808269569934008268d9d6bjACsn1E | 200 |       507.3µs |             ::1 |     GET /api/user/models
+[SYS] 2026/06/14 - 02:08:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:08:34 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:08:35 | api | 202606131808352357666008268d9d6sDtsIX7l | 200 |            0s |             ::1 |     GET /api/uptime/status
+[GIN] 2026/06/14 - 02:08:35 | api | 202606131808352357666008268d9d6tIUctvch | 200 |       504.9µs |             ::1 |     GET /api/data/self?start_timestamp=1781291315&end_timestamp=1781377715&default_time=hour
+[GIN] 2026/06/14 - 02:08:35 | api | 202606131808353175231008268d9d6dN4SdBGi | 200 |      1.5564ms |             ::1 |     GET /api/option/
+[GIN] 2026/06/14 - 02:08:36 | api | 202606131808367820464008268d9d66tvTGagU | 200 |            0s |             ::1 |     GET /api/uptime/status
+[GIN] 2026/06/14 - 02:08:36 | api | 202606131808367820464008268d9d6X5GBfdRs | 200 |       507.5µs |             ::1 |     GET /api/data/self?start_timestamp=1781291316&end_timestamp=1781377716&default_time=hour
+[SYS] 2026/06/14 - 02:08:49 | syncing options from database 
+[SYS] 2026/06/14 - 02:08:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:08:49 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:08:51 | api | 20260613180851726362008268d9d6muOvPweb | 200 |            0s |             ::1 |     GET /api/uptime/status
+[GIN] 2026/06/14 - 02:08:51 | api | 20260613180851726362008268d9d69GS5rcZ1 | 200 |       504.5µs |             ::1 |     GET /api/data/self?start_timestamp=1781291330&end_timestamp=1781377730&default_time=hour
+[GIN] 2026/06/14 - 02:08:51 | api | 202606131808511087673008268d9d6TvccUyWz | 200 |       507.3µs |             ::1 |     GET /api/data?start_timestamp=1781287730&end_timestamp=1781374130&default_time=hour
+[GIN] 2026/06/14 - 02:08:51 | api | 202606131808518377302008268d9d6qGY3gkSx | 200 |       504.9µs |             ::1 |     GET /api/data?start_timestamp=1781287731&end_timestamp=1781374131&default_time=hour
+[GIN] 2026/06/14 - 02:08:51 | api | 202606131808519004437008268d9d6ct8CEyEg | 200 |            0s |             ::1 |     GET /api/uptime/status
+[GIN] 2026/06/14 - 02:08:51 | api | 202606131808519004437008268d9d6WnqRlTFU | 200 |       608.1µs |             ::1 |     GET /api/data/self?start_timestamp=1781291331&end_timestamp=1781377731&default_time=hour
+[GIN] 2026/06/14 - 02:08:56 | api | 202606131808564906794008268d9d6RHuB1tHM | 200 |       506.6µs |             ::1 |     GET /api/uptime/status
+[GIN] 2026/06/14 - 02:08:56 | api | 202606131808564906794008268d9d67EwPGrtC | 200 |       506.6µs |             ::1 |     GET /api/data/self?start_timestamp=1781291336&end_timestamp=1781377736&default_time=hour
+[GIN] 2026/06/14 - 02:08:56 | api | 202606131808565233491008268d9d6j6S8RiyT | 200 |            0s |             ::1 |     GET /api/subscription/plans
+[GIN] 2026/06/14 - 02:08:56 | api | 202606131808565238534008268d9d6L5RFdHZ5 | 200 |       530.5µs |             ::1 |     GET /api/user/topup/info
+[GIN] 2026/06/14 - 02:08:56 | api | 202606131808565233491008268d9d6IwfW4k4m | 200 |      1.5563ms |             ::1 |     GET /api/subscription/self
+[GIN] 2026/06/14 - 02:08:56 | api | 202606131808565243839008268d9d6fkLKafqI | 200 |       521.5µs |             ::1 |     GET /api/user/aff
+[GIN] 2026/06/14 - 02:08:56 | api | 202606131808565249054008268d9d6f1bRp284 | 200 |       527.7µs |             ::1 |     GET /api/user/self
+[GIN] 2026/06/14 - 02:08:56 | api | 202606131808565238534008268d9d6HkkWSm6Q | 200 |       2.723ms |             ::1 |     GET /api/user/topup?p=1&page_size=10
+[GIN] 2026/06/14 - 02:08:56 | api | 202606131808565656636008268d9d6rlmkYqCd | 200 |       529.6µs |             ::1 |    POST /api/user/amount
+[SYS] 2026/06/14 - 02:09:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:09:04 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:09:05 | api | 202606131809058803599008268d9d6mAcUcJN2 | 200 |            0s |             ::1 |     GET /api/subscription/plans
+[GIN] 2026/06/14 - 02:09:05 | api | 202606131809058808643008268d9d6QYgdCC8Q | 200 |            0s |             ::1 |     GET /api/user/topup/info
+[GIN] 2026/06/14 - 02:09:05 | api | 202606131809058808643008268d9d658s2pGDf | 200 |            0s |             ::1 |     GET /api/user/topup?p=1&page_size=10
+[GIN] 2026/06/14 - 02:09:05 | api | 202606131809058803599008268d9d6vADetx8Q | 200 |       504.4µs |             ::1 |     GET /api/subscription/self
+[GIN] 2026/06/14 - 02:09:05 | api | 202606131809058808643008268d9d6xFdG6Ywv | 200 |       628.7µs |             ::1 |     GET /api/user/aff
+[GIN] 2026/06/14 - 02:09:05 | api | 202606131809058814930008268d9d60KBLlNjd | 200 |            0s |             ::1 |     GET /api/user/self
+
+2026/06/14 02:09:05 [31;1mE:/XM/new-api/model/passkey.go:148 [35;1mrecord not found
+[0m[33m[0.747ms] [34;1m[rows:0][0m SELECT * FROM `passkey_credentials` WHERE user_id = 1 AND `passkey_credentials`.`deleted_at` IS NULL ORDER BY `passkey_credentials`.`id` LIMIT 1
+
+2026/06/14 02:09:05 [31;1mE:/XM/new-api/model/twofa.go:45 [35;1mrecord not found
+[0m[33m[0.747ms] [34;1m[rows:0][0m SELECT * FROM `two_fas` WHERE user_id = 1 AND `two_fas`.`deleted_at` IS NULL ORDER BY `two_fas`.`id` LIMIT 1
+[GIN] 2026/06/14 - 02:09:05 | api | 202606131809058835577008268d9d6WA9nQeTE | 200 |       746.9µs |             ::1 |     GET /api/user/passkey
+[GIN] 2026/06/14 - 02:09:05 | api | 202606131809058835577008268d9d6qt8eVCja | 200 |       746.9µs |             ::1 |     GET /api/user/2fa/status
+
+2026/06/14 02:09:07 [31;1mE:/XM/new-api/model/twofa.go:45 [35;1mrecord not found
+[0m[33m[0.506ms] [34;1m[rows:0][0m SELECT * FROM `two_fas` WHERE user_id = 1 AND `two_fas`.`deleted_at` IS NULL ORDER BY `two_fas`.`id` LIMIT 1
+
+2026/06/14 02:09:07 [31;1mE:/XM/new-api/model/passkey.go:148 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `passkey_credentials` WHERE user_id = 1 AND `passkey_credentials`.`deleted_at` IS NULL ORDER BY `passkey_credentials`.`id` LIMIT 1
+[GIN] 2026/06/14 - 02:09:07 | api | 202606131809074789675008268d9d648r5CMaa | 200 |       506.2µs |             ::1 |     GET /api/user/2fa/status
+[GIN] 2026/06/14 - 02:09:07 | api | 202606131809074789675008268d9d6cpGdOsCK | 200 |      1.0333ms |             ::1 |     GET /api/user/passkey
+[GIN] 2026/06/14 - 02:09:07 | api | 202606131809074794737008268d9d6e9lHsD9i | 200 |       527.1µs |             ::1 |     GET /api/user/self
+[GIN] 2026/06/14 - 02:09:07 | api | 202606131809075013849008268d9d6LcCJ044x | 200 |            0s |             ::1 |     GET /api/subscription/plans
+[GIN] 2026/06/14 - 02:09:07 | api | 202606131809075018888008268d9d6RR4VFIlt | 200 |            0s |             ::1 |     GET /api/user/topup/info
+[GIN] 2026/06/14 - 02:09:07 | api | 202606131809075018888008268d9d65anSwh2s | 200 |            0s |             ::1 |     GET /api/user/topup?p=1&page_size=10
+[GIN] 2026/06/14 - 02:09:07 | api | 202606131809075013849008268d9d6qjb9uJUT | 200 |      1.0433ms |             ::1 |     GET /api/subscription/self
+[GIN] 2026/06/14 - 02:09:07 | api | 202606131809075024282008268d9d651cgqjPj | 200 |            0s |             ::1 |     GET /api/user/aff
+[GIN] 2026/06/14 - 02:09:07 | api | 202606131809075328662008268d9d6GRBDfn5B | 200 |            0s |             ::1 |    POST /api/user/amount
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809115745361008268d9d6MGuE7KMX | 200 |            0s |             ::1 |     GET /api/subscription/plans
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809115750416008268d9d67Ij6przk | 200 |            0s |             ::1 |     GET /api/user/topup?p=1&page_size=10
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809115745361008268d9d6sCN49Yzr | 200 |       505.5µs |             ::1 |     GET /api/subscription/self
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809115750416008268d9d6hRkUfxnt | 200 |            0s |             ::1 |     GET /api/user/topup/info
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809115756065008268d9d6rccabNq9 | 200 |            0s |             ::1 |     GET /api/user/aff
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809115756065008268d9d6CvzJirJ8 | 200 |       529.9µs |             ::1 |     GET /api/user/self
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809116882643008268d9d6R95tckRl | 200 |            0s |             ::1 |     GET /api/group/
+
+2026/06/14 02:09:11 [31;1mE:/XM/new-api/model/twofa.go:45 [35;1mrecord not found
+[0m[33m[0.529ms] [34;1m[rows:0][0m SELECT * FROM `two_fas` WHERE user_id = 1 AND `two_fas`.`deleted_at` IS NULL ORDER BY `two_fas`.`id` LIMIT 1
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809116887689008268d9d6pHuNpD51 | 200 |       528.7µs |             ::1 |     GET /api/user/2fa/status
+
+2026/06/14 02:09:11 [31;1mE:/XM/new-api/model/passkey.go:148 [35;1mrecord not found
+[0m[33m[0.527ms] [34;1m[rows:0][0m SELECT * FROM `passkey_credentials` WHERE user_id = 1 AND `passkey_credentials`.`deleted_at` IS NULL ORDER BY `passkey_credentials`.`id` LIMIT 1
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809116882643008268d9d6YVuEYZAX | 200 |      1.5602ms |             ::1 |     GET /api/channel/models
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809116887689008268d9d6AaBDu0YK | 200 |      1.0556ms |             ::1 |     GET /api/user/passkey
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809117396503008268d9d6ft7tgxEp | 200 |       504.3µs |             ::1 |     GET /api/channel/?tag_mode=false&id_sort=false&p=1&page_size=20
+[GIN] 2026/06/14 - 02:09:11 | api | 202606131809117401546008268d9d6rFD1RYoP | 200 |            0s |             ::1 |     GET /api/prefill_group/?type=model
+
+2026/06/14 02:09:12 [31;1mE:/XM/new-api/model/twofa.go:45 [35;1mrecord not found
+[0m[33m[0.504ms] [34;1m[rows:0][0m SELECT * FROM `two_fas` WHERE user_id = 1 AND `two_fas`.`deleted_at` IS NULL ORDER BY `two_fas`.`id` LIMIT 1
+
+2026/06/14 02:09:12 [31;1mE:/XM/new-api/model/passkey.go:148 [35;1mrecord not found
+[0m[33m[0.000ms] [34;1m[rows:0][0m SELECT * FROM `passkey_credentials` WHERE user_id = 1 AND `passkey_credentials`.`deleted_at` IS NULL ORDER BY `passkey_credentials`.`id` LIMIT 1
+[GIN] 2026/06/14 - 02:09:12 | api | 202606131809124211678008268d9d6kfe5ZebF | 200 |         504µs |             ::1 |     GET /api/user/2fa/status
+[GIN] 2026/06/14 - 02:09:12 | api | 202606131809124211678008268d9d6qVomBzoc | 200 |      1.0276ms |             ::1 |     GET /api/user/passkey
+[GIN] 2026/06/14 - 02:09:12 | api | 202606131809125540884008268d9d6zxsilSu5 | 200 |       520.4µs |             ::1 |     GET /api/vendors/?page_size=1000
+[GIN] 2026/06/14 - 02:09:12 | api | 202606131809125546088008268d9d6nLCkmYMY | 200 |            0s |             ::1 |     GET /api/models/?p=1&page_size=20
+[GIN] 2026/06/14 - 02:09:17 | api | 202606131809174811160008268d9d6aj0r4fh5 | 200 |            0s |             ::1 |     GET /api/uptime/status
+[GIN] 2026/06/14 - 02:09:17 | api | 202606131809174811160008268d9d6mbzjnfxo | 200 |       801.3µs |             ::1 |     GET /api/data/self?start_timestamp=1781291357&end_timestamp=1781377757&default_time=hour
+[GIN] 2026/06/14 - 02:09:18 | api | 202606131809189829925008268d9d6WPSxdo9i | 200 |         600µs |             ::1 |     GET /api/data/self?start_timestamp=1781291358&end_timestamp=1781377758&default_time=hour
+[GIN] 2026/06/14 - 02:09:18 | api | 202606131809189835925008268d9d6v2nv4sGP | 200 |            0s |             ::1 |     GET /api/uptime/status
+[GIN] 2026/06/14 - 02:09:19 | api | 20260613180919331597008268d9d6I37LAJfo | 200 |       518.5µs |             ::1 |     GET /api/subscription/admin/plans
+[SYS] 2026/06/14 - 02:09:19 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:09:19 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:09:20 | api | 202606131809202510976008268d9d6iSzDpGJ4 | 200 |       503.1µs |             ::1 |     GET /api/redemption/?p=1&page_size=20
+[GIN] 2026/06/14 - 02:09:22 | api | 202606131809225443497008268d9d6YJinIMTu | 200 |            0s |             ::1 |     GET /api/subscription/plans
+[GIN] 2026/06/14 - 02:09:22 | api | 202606131809225443497008268d9d6v5T3Hcr5 | 200 |      1.0916ms |             ::1 |     GET /api/subscription/self
+[GIN] 2026/06/14 - 02:09:22 | api | 202606131809225470456008268d9d6lxtuYx6F | 200 |            0s |             ::1 |     GET /api/user/topup?p=1&page_size=10
+[GIN] 2026/06/14 - 02:09:22 | api | 202606131809225483052008268d9d6AH5AfgPc | 200 |            0s |             ::1 |     GET /api/user/topup/info
+[GIN] 2026/06/14 - 02:09:22 | api | 202606131809225492675008268d9d6oQoIjceh | 200 |            0s |             ::1 |     GET /api/user/aff
+[GIN] 2026/06/14 - 02:09:22 | api | 202606131809225497732008268d9d6yMH79Lj0 | 200 |       519.2µs |             ::1 |     GET /api/user/self
+[GIN] 2026/06/14 - 02:09:22 | api | 202606131809225778567008268d9d6Ez8gUOIq | 200 |       513.2µs |             ::1 |    POST /api/user/amount
+[SYS] 2026/06/14 - 02:09:34 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:09:34 | 任务进度轮询完成 
+[GIN] 2026/06/14 - 02:09:38 | api | 202606131809382122449008268d9d6XaoVCXEf | 200 |            0s |             ::1 |     GET /api/subscription/plans
+[GIN] 2026/06/14 - 02:09:38 | api | 202606131809382127481008268d9d6scKtHbUj | 200 |       523.9µs |             ::1 |     GET /api/user/topup?p=1&page_size=10
+[GIN] 2026/06/14 - 02:09:38 | api | 202606131809382132720008268d9d6oqsZZ7IO | 200 |            0s |             ::1 |     GET /api/user/topup/info
+[GIN] 2026/06/14 - 02:09:38 | api | 202606131809382122449008268d9d6U7CH1Bfr | 200 |      1.0271ms |             ::1 |     GET /api/subscription/self
+[GIN] 2026/06/14 - 02:09:38 | api | 202606131809382152483008268d9d6VDH3iV68 | 200 |       504.4µs |             ::1 |     GET /api/user/aff
+[GIN] 2026/06/14 - 02:09:38 | api | 202606131809382152483008268d9d6r1SyRj3D | 200 |       504.4µs |             ::1 |     GET /api/user/self
+[GIN] 2026/06/14 - 02:09:38 | api | 202606131809382733374008268d9d68PYTW9yM | 200 |            0s |             ::1 |     GET /api/home_page_content
+[GIN] 2026/06/14 - 02:09:43 | api | 20260613180943167918008268d9d6mmzG9Oj4 | 200 |            0s |             ::1 |     GET /api/status
+[SYS] 2026/06/14 - 02:09:49 | syncing options from database 
+[SYS] 2026/06/14 - 02:09:49 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:09:49 | 任务进度轮询完成 
+[SYS] 2026/06/14 - 02:10:04 | 任务进度轮询开始 
+[SYS] 2026/06/14 - 02:10:04 | 任务进度轮询完成 

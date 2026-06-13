@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
+import { Loader2, LockKeyhole, Mail, ShieldCheck, User } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -40,6 +40,13 @@ import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
 import { register, wechatLoginByCode } from '@/features/auth/api'
+import {
+  AUTH_BUTTON_CLASS,
+  AUTH_ICON_CLASS,
+  AUTH_ICON_INPUT_CLASS,
+  AUTH_INPUT_CLASS,
+  AUTH_PASSWORD_INPUT_CLASS,
+} from '@/features/auth/components/auth-form-styles'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
@@ -236,9 +243,16 @@ export function SignUpForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>{t('Username')}</FormLabel>
-              <FormControl>
-                <Input placeholder={t('Enter your username')} {...field} />
-              </FormControl>
+              <div className='relative'>
+                <User className={AUTH_ICON_CLASS} />
+                <FormControl>
+                  <Input
+                    placeholder={t('Enter your username')}
+                    className={AUTH_ICON_INPUT_CLASS}
+                    {...field}
+                  />
+                </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -251,12 +265,16 @@ export function SignUpForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>{t('Password')}</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  placeholder={t('Enter password (8-20 characters)')}
-                  {...field}
-                />
-              </FormControl>
+              <div className='relative'>
+                <LockKeyhole className={AUTH_ICON_CLASS} />
+                <FormControl>
+                  <PasswordInput
+                    placeholder={t('Enter password (8-20 characters)')}
+                    inputClassName={AUTH_PASSWORD_INPUT_CLASS}
+                    {...field}
+                  />
+                </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -269,9 +287,16 @@ export function SignUpForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>{t('Confirm password')}</FormLabel>
-              <FormControl>
-                <PasswordInput placeholder={t('Confirm password')} {...field} />
-              </FormControl>
+              <div className='relative'>
+                <LockKeyhole className={AUTH_ICON_CLASS} />
+                <FormControl>
+                  <PasswordInput
+                    placeholder={t('Confirm password')}
+                    inputClassName={AUTH_PASSWORD_INPUT_CLASS}
+                    {...field}
+                  />
+                </FormControl>
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -289,13 +314,17 @@ export function SignUpForm({
                   <FormLabel>
                     {t('Email (required for verification)')}
                   </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('name@example.com')}
-                      type='email'
-                      {...field}
-                    />
-                  </FormControl>
+                  <div className='relative'>
+                    <Mail className={AUTH_ICON_CLASS} />
+                    <FormControl>
+                      <Input
+                        placeholder={t('name@example.com')}
+                        type='email'
+                        className={AUTH_ICON_INPUT_CLASS}
+                        {...field}
+                      />
+                    </FormControl>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -304,15 +333,20 @@ export function SignUpForm({
             {/* Verification Code Field */}
             <div className='flex items-end gap-2'>
               <div className='flex-1'>
-                <Input
-                  placeholder={t('Verification code')}
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                />
+                <div className='relative'>
+                  <ShieldCheck className={AUTH_ICON_CLASS} />
+                  <Input
+                    placeholder={t('Verification code')}
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    className={AUTH_ICON_INPUT_CLASS}
+                  />
+                </div>
               </div>
               <Button
                 variant='outline'
                 type='button'
+                className='h-10 shrink-0 rounded-lg'
                 disabled={
                   isLoading ||
                   isSendingCode ||
@@ -354,7 +388,7 @@ export function SignUpForm({
         {/* Submit Button */}
         <Button
           type='submit'
-          className='mt-2 w-full justify-center gap-2'
+          className={cn(AUTH_BUTTON_CLASS, 'mt-2 w-full justify-center gap-2')}
           disabled={
             isLoading ||
             (requiresLegalConsent && !agreedToLegal) ||
@@ -437,6 +471,7 @@ export function SignUpForm({
               value={wechatCode}
               onChange={(event) => setWeChatCode(event.target.value)}
               autoComplete='one-time-code'
+              className={AUTH_INPUT_CLASS}
             />
           </div>
         </Dialog>

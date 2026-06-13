@@ -21,7 +21,7 @@ import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
-import { Loader2, LogIn, KeyRound } from 'lucide-react'
+import { Loader2, LogIn, KeyRound, LockKeyhole, Mail } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -46,6 +46,12 @@ import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
 import { login, wechatLoginByCode } from '@/features/auth/api'
+import {
+  AUTH_BUTTON_CLASS,
+  AUTH_ICON_CLASS,
+  AUTH_ICON_INPUT_CLASS,
+  AUTH_PASSWORD_INPUT_CLASS,
+} from '@/features/auth/components/auth-form-styles'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
@@ -335,12 +341,16 @@ export function UserAuthForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('Username or Email')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('Enter your username or email')}
-                      {...field}
-                    />
-                  </FormControl>
+                  <div className='relative'>
+                    <Mail className={AUTH_ICON_CLASS} />
+                    <FormControl>
+                      <Input
+                        placeholder={t('Enter your username or email')}
+                        className={AUTH_ICON_INPUT_CLASS}
+                        {...field}
+                      />
+                    </FormControl>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -353,12 +363,16 @@ export function UserAuthForm({
               render={({ field }) => (
                 <FormItem className='relative'>
                   <FormLabel>{t('Password')}</FormLabel>
-                  <FormControl>
-                    <PasswordInput
-                      placeholder={t('Enter password')}
-                      {...field}
-                    />
-                  </FormControl>
+                  <div className='relative'>
+                    <LockKeyhole className={AUTH_ICON_CLASS} />
+                    <FormControl>
+                      <PasswordInput
+                        placeholder={t('Enter password')}
+                        inputClassName={AUTH_PASSWORD_INPUT_CLASS}
+                        {...field}
+                      />
+                    </FormControl>
+                  </div>
                   <FormMessage />
                   <Link
                     to='/forgot-password'
@@ -373,7 +387,10 @@ export function UserAuthForm({
             {/* Submit Button */}
             <Button
               type='submit'
-              className='mt-2 w-full justify-center gap-2'
+              className={cn(
+                AUTH_BUTTON_CLASS,
+                'mt-2 w-full justify-center gap-2'
+              )}
               disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
             >
               {isLoading ? <Loader2 className='animate-spin' /> : <LogIn />}

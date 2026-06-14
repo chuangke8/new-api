@@ -12,6 +12,37 @@
       name="description"
       content="Unified AI API gateway and admin dashboard."
     />
+    <script>
+      ;(() => {
+        const applyTitle = (name) => {
+          if (!name || typeof name !== 'string') return
+          document.title = name
+          document
+            .querySelector('meta[name="title"]')
+            ?.setAttribute('content', name)
+        }
+
+        try {
+          const cached = localStorage.getItem('status')
+          if (cached) {
+            applyTitle(JSON.parse(cached)?.system_name)
+          }
+        } catch {}
+
+        fetch('/api/status', { credentials: 'same-origin' })
+          .then((response) => (response.ok ? response.json() : null))
+          .then((data) => {
+            const payload = data?.data ?? data
+            applyTitle(payload?.system_name)
+            if (payload) {
+              try {
+                localStorage.setItem('status', JSON.stringify(payload))
+              } catch {}
+            }
+          })
+          .catch(() => {})
+      })()
+    </script>
 
     <meta name="theme-color" content="#fff" />
     <!--umami-->

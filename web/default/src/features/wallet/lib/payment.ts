@@ -86,6 +86,13 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.WAFFO_PANCAKE
 }
 
+export function isXunhuPayPayment(paymentType: string): boolean {
+  return (
+    paymentType === PAYMENT_TYPES.XUNHUPAY_WECHAT ||
+    paymentType === PAYMENT_TYPES.XUNHUPAY_ALIPAY
+  )
+}
+
 /**
  * Get default payment type from topup info
  */

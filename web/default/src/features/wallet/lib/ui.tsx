@@ -94,13 +94,25 @@ export function getPaymentIcon(
         />
       )
     case PAYMENT_TYPES.WECHAT:
+    case PAYMENT_TYPES.XUNHUPAY_WECHAT:
       return (
         <SiWechat
           className={className}
-          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.WECHAT] }}
+          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.XUNHUPAY_WECHAT] }}
         />
       )
+    case PAYMENT_TYPES.XUNHUPAY_ALIPAY:
     case PAYMENT_TYPES.STRIPE:
+      if (paymentType === PAYMENT_TYPES.XUNHUPAY_ALIPAY) {
+        return (
+          <SiAlipay
+            className={className}
+            style={{
+              color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.XUNHUPAY_ALIPAY],
+            }}
+          />
+        )
+      }
       return (
         <SiStripe
           className={className}

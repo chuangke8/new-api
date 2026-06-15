@@ -332,6 +332,11 @@ export type BillingSettings = {
   StripeUnitPrice: number
   StripeMinTopUp: number
   StripePromotionCodesEnabled: boolean
+  XunhuPayGateway: string
+  XunhuPayWechatAppID: string
+  XunhuPayWechatSecret: string
+  XunhuPayAlipayAppID: string
+  XunhuPayAlipaySecret: string
   CreemApiKey: string
   CreemWebhookSecret: string
   CreemTestMode: boolean

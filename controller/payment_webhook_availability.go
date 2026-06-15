@@ -96,7 +96,15 @@ func isEpayTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false
 	}
-	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
+	if !isEpayWebhookConfigured() {
+		return false
+	}
+	for _, method := range operation_setting.GetEnabledPayMethods() {
+		if !isXunhuPayMethod(method["type"]) {
+			return true
+		}
+	}
+	return false
 }
 
 func isEpayWebhookConfigured() bool {

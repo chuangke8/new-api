@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState, useEffect } from 'react'
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatNumber } from '@/lib/format'
+import { formatLocalCurrencyAmount } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -35,7 +35,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  formatCurrency,
   getDiscountLabel,
   getPaymentIcon,
   getMinTopupAmount,
@@ -131,9 +130,12 @@ export function RechargeFormCard({
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
   const hasStandardPaymentMethods =
-    Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
+    Array.isArray(topupInfo?.pay_methods) &&
+    topupInfo.pay_methods.some((method) => method.enabled !== false)
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
+  const hasMethodDrivenTopup =
+    hasStandardPaymentMethods || (enableWaffoTopup && hasWaffoPaymentMethods)
   const minTopup = getMinTopupAmount(topupInfo)
   const redemptionEnabled = topupInfo?.enable_redemption !== false
 
@@ -207,61 +209,52 @@ export function RechargeFormCard({
       contentClassName='space-y-4 sm:space-y-6'
     >
       {/* Online Topup Section */}
-      {hasAnyTopup ? (
+      {hasAnyTopup || hasMethodDrivenTopup ? (
         <div className='space-y-4 sm:space-y-6'>
-          {hasConfigurableTopup && (
+          {(hasConfigurableTopup || hasMethodDrivenTopup) && (
             <>
               {presetAmounts.length > 0 && (
                 <div className='space-y-2.5 sm:space-y-3'>
                   <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                     {t('Amount')}
                   </Label>
-                  <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
+                  <div className='flex flex-wrap gap-2 sm:gap-3'>
                     {presetAmounts.map((preset, index) => {
                       const discount =
                         preset.discount ||
                         topupInfo?.discount?.[preset.value] ||
                         1.0
-                      const {
-                        displayValue,
-                        actualPrice,
-                        savedAmount,
-                        hasDiscount,
-                      } = calculatePresetPricing(
-                        preset.value,
-                        priceRatio,
-                        discount,
-                        usdExchangeRate
-                      )
+                      const { displayValue, hasDiscount } =
+                        calculatePresetPricing(
+                          preset.value,
+                          priceRatio,
+                          discount,
+                          usdExchangeRate
+                        )
                       return (
                         <Button
                           key={index}
                           variant='outline'
                           className={cn(
-                            'hover:border-foreground flex min-h-16 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal sm:min-h-[72px] sm:p-4',
+                            'hover:border-foreground flex h-11 w-[5.5rem] flex-col items-center justify-center rounded-lg px-2 py-1.5 text-center whitespace-normal sm:h-[3.25rem] sm:w-[6.5rem]',
                             selectedPreset === preset.value
                               ? 'border-foreground bg-foreground/5 dark:border-foreground dark:bg-foreground/10'
                               : 'border-muted'
                           )}
                           onClick={() => onSelectPreset(preset)}
                         >
-                          <div className='flex w-full items-center justify-between'>
-                            <div className='text-base font-semibold sm:text-lg'>
-                              {formatNumber(displayValue)}
+                          <div className='flex w-full flex-col items-center justify-center gap-1'>
+                            <div className='w-full truncate text-center text-sm font-semibold sm:text-base'>
+                              {formatLocalCurrencyAmount(displayValue, {
+                                digitsLarge: 2,
+                                digitsSmall: 2,
+                                abbreviate: false,
+                              })}
                             </div>
                             {hasDiscount && (
-                              <div className='text-xs font-medium text-green-600'>
+                              <div className='w-full truncate text-center text-xs font-medium text-green-600'>
                                 {getDiscountLabel(discount)}
                               </div>
-                            )}
-                          </div>
-                          <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                            Pay {formatCurrency(actualPrice)}
-                            {hasDiscount && savedAmount > 0 && (
-                              <span className='text-green-600'>
-                                {' '}
-                                • Save {formatCurrency(savedAmount)}
-                              </span>
                             )}
                           </div>
                         </Button>
@@ -296,7 +289,11 @@ export function RechargeFormCard({
                       <Skeleton className='h-5 w-16' />
                     ) : (
                       <span className='text-sm font-semibold'>
-                        {formatCurrency(paymentAmount)}
+                        {formatLocalCurrencyAmount(paymentAmount, {
+                          digitsLarge: 2,
+                          digitsSmall: 2,
+                          abbreviate: false,
+                        })}
                       </span>
                     )}
                   </div>
@@ -308,8 +305,10 @@ export function RechargeFormCard({
                   {t('Payment Method')}
                 </Label>
                 {hasStandardPaymentMethods ? (
-                  <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
-                    {topupInfo?.pay_methods?.map((method) => {
+                  <div className='flex flex-wrap gap-2 sm:gap-3'>
+                    {topupInfo?.pay_methods
+                      ?.filter((method) => method.enabled !== false)
+                      .map((method) => {
                       const minTopup = method.min_topup || 0
                       const disabled = minTopup > topupAmount
 
@@ -319,19 +318,21 @@ export function RechargeFormCard({
                           variant='outline'
                           onClick={() => onPaymentMethodSelect(method)}
                           disabled={disabled || !!paymentLoading}
-                          className='h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
+                          className='h-14 w-44 justify-center gap-2 rounded-lg px-3 sm:w-48'
                         >
                           {paymentLoading === method.type ? (
-                            <Loader2 className='h-4 w-4 animate-spin' />
+                            <Loader2 className='h-7 w-7 shrink-0 animate-spin' />
                           ) : (
                             getPaymentIcon(
                               method.type,
-                              'h-4 w-4',
+                              'h-7 w-7 shrink-0',
                               method.icon,
                               method.name
                             )
                           )}
-                          <span className='truncate'>{method.name}</span>
+                          <span className='truncate text-sm font-medium sm:text-base'>
+                            {method.name}
+                          </span>
                         </Button>
                       )
 
@@ -369,7 +370,7 @@ export function RechargeFormCard({
                     <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                       {t('Waffo Payment')}
                     </Label>
-                    <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
+                    <div className='flex flex-wrap gap-2 sm:gap-3'>
                       {waffoPayMethods?.map((method, index) => {
                         const loadingKey = `waffo-${index}`
                         const waffoMin = waffoMinTopup || 0
@@ -381,20 +382,22 @@ export function RechargeFormCard({
                             variant='outline'
                             onClick={() => onWaffoMethodSelect(method, index)}
                             disabled={belowMin || !!paymentLoading}
-                            className='h-9 min-w-0 justify-start gap-2 rounded-lg px-3'
+                            className='h-14 w-44 justify-center gap-2 rounded-lg px-3 sm:w-48'
                           >
                             {paymentLoading === loadingKey ? (
-                              <Loader2 className='h-4 w-4 animate-spin' />
+                              <Loader2 className='h-7 w-7 shrink-0 animate-spin' />
                             ) : method.icon ? (
                               <img
                                 src={method.icon}
                                 alt={method.name}
-                                className='h-4 w-4 object-contain'
+                                className='h-7 w-7 shrink-0 object-contain'
                               />
                             ) : (
-                              getPaymentIcon('waffo')
+                              getPaymentIcon('waffo', 'h-7 w-7 shrink-0')
                             )}
-                            <span className='truncate'>{method.name}</span>
+                            <span className='truncate text-sm font-medium sm:text-base'>
+                              {method.name}
+                            </span>
                           </Button>
                         )
 

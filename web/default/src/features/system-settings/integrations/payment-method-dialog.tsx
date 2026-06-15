@@ -33,6 +33,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Dialog } from '@/components/dialog'
 
 const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
@@ -40,6 +41,7 @@ const createPaymentMethodDialogSchema = (t: (key: string) => string) =>
     name: z.string().min(1, t('Payment method name is required')),
     type: z.string().min(1, t('Payment method type is required')),
     color: z.string().min(1, t('Color is required')),
+    enabled: z.boolean(),
     min_topup: z.string().optional(),
   })
 
@@ -53,6 +55,7 @@ export type PaymentMethodData = {
   name: string
   type: string
   color: string
+  enabled?: boolean
   min_topup?: string
 }
 
@@ -67,6 +70,8 @@ const PAYMENT_TYPES = [
   { value: 'alipay', label: 'Alipay' },
   { value: 'wxpay', label: 'WeChat Pay' },
   { value: 'stripe', label: 'Stripe' },
+  { value: 'Xunhupay_Wechat', label: 'XunhuPay WeChat' },
+  { value: 'Xunhupay_Alipay', label: 'XunhuPay Alipay' },
 ]
 
 const getColorPreview = (color: string) => {
@@ -116,6 +121,7 @@ export function PaymentMethodDialog({
       name: '',
       type: '',
       color: '',
+      enabled: true,
       min_topup: '',
     },
   })
@@ -144,6 +150,7 @@ export function PaymentMethodDialog({
         name: '',
         type: '',
         color: '',
+        enabled: true,
         min_topup: '',
       })
     }
@@ -154,6 +161,7 @@ export function PaymentMethodDialog({
       name: values.name,
       type: values.type,
       color: values.color,
+      enabled: values.enabled,
     }
     if (values.min_topup && values.min_topup.trim() !== '') {
       data.min_topup = values.min_topup
@@ -264,6 +272,27 @@ export function PaymentMethodDialog({
                   {t('Select preset or enter custom CSS color value.')}
                 </FormDescription>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='enabled'
+            render={({ field }) => (
+              <FormItem className='flex items-center justify-between rounded-lg border p-3'>
+                <div className='space-y-1'>
+                  <FormLabel>{t('Enabled')}</FormLabel>
+                  <FormDescription>
+                    {t('Show this payment method to users.')}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
               </FormItem>
             )}
           />

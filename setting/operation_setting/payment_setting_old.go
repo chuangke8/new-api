@@ -6,6 +6,8 @@ This file is the old version of the payment settings file. If you need to add ne
 package operation_setting
 
 import (
+	"fmt"
+
 	"github.com/QuantumNous/new-api/common"
 )
 
@@ -37,8 +39,19 @@ var PayMethods = []map[string]string{
 }
 
 func UpdatePayMethodsByJsonString(jsonString string) error {
-	PayMethods = make([]map[string]string, 0)
-	return common.Unmarshal([]byte(jsonString), &PayMethods)
+	var rawMethods []map[string]interface{}
+	if err := common.Unmarshal([]byte(jsonString), &rawMethods); err != nil {
+		return err
+	}
+	PayMethods = make([]map[string]string, 0, len(rawMethods))
+	for _, rawMethod := range rawMethods {
+		method := make(map[string]string, len(rawMethod))
+		for key, value := range rawMethod {
+			method[key] = fmt.Sprintf("%v", value)
+		}
+		PayMethods = append(PayMethods, method)
+	}
+	return nil
 }
 
 func PayMethods2JsonString() string {
@@ -51,9 +64,33 @@ func PayMethods2JsonString() string {
 
 func ContainsPayMethod(method string) bool {
 	for _, payMethod := range PayMethods {
+		if payMethod["type"] == method && IsPayMethodEnabled(payMethod) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsPayMethodEnabled(payMethod map[string]string) bool {
+	enabled, ok := payMethod["enabled"]
+	return !ok || enabled != "false"
+}
+
+func HasPayMethod(method string) bool {
+	for _, payMethod := range PayMethods {
 		if payMethod["type"] == method {
 			return true
 		}
 	}
 	return false
+}
+
+func GetEnabledPayMethods() []map[string]string {
+	enabledMethods := make([]map[string]string, 0, len(PayMethods))
+	for _, payMethod := range PayMethods {
+		if IsPayMethodEnabled(payMethod) {
+			enabledMethods = append(enabledMethods, payMethod)
+		}
+	}
+	return enabledMethods
 }

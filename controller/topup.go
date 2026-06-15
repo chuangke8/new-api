@@ -25,13 +25,40 @@ func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
 
 	// 获取支付方式
-	payMethods := operation_setting.PayMethods
+	payMethods := operation_setting.GetEnabledPayMethods()
 	if !complianceConfirmed {
 		payMethods = []map[string]string{}
 	}
+	if complianceConfirmed {
+		filteredPayMethods := make([]map[string]string, 0, len(payMethods))
+		for _, method := range payMethods {
+			methodType := method["type"]
+			if isXunhuPayMethod(methodType) {
+				if !isXunhuPayConfigured(methodType) {
+					continue
+				}
+				method = lo.Assign(map[string]string{}, method)
+				method["min_topup"] = strconv.FormatInt(getXunhuPayMinTopup(methodType), 10)
+			} else if methodType == model.PaymentMethodStripe {
+				if !isStripeTopUpEnabled() {
+					continue
+				}
+			} else if methodType == model.PaymentMethodWaffoPancake {
+				if !isWaffoPancakeTopUpEnabled() {
+					continue
+				}
+			} else if methodType == model.PaymentMethodWaffo {
+				continue
+			} else if !isEpayWebhookConfigured() {
+				continue
+			}
+			filteredPayMethods = append(filteredPayMethods, method)
+		}
+		payMethods = filteredPayMethods
+	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
-	if isStripeTopUpEnabled() {
+	if isStripeTopUpEnabled() && !operation_setting.HasPayMethod(model.PaymentMethodStripe) {
 		// 检查是否已经包含 Stripe
 		hasStripe := false
 		for _, method := range payMethods {
@@ -54,7 +81,7 @@ func GetTopUpInfo(c *gin.Context) {
 
 	// Waffo Pancake displayed above the legacy Waffo gateway.
 	enableWaffoPancake := isWaffoPancakeTopUpEnabled()
-	if enableWaffoPancake {
+	if enableWaffoPancake && !operation_setting.HasPayMethod(model.PaymentMethodWaffoPancake) {
 		hasWaffoPancake := false
 		for _, method := range payMethods {
 			if method["type"] == model.PaymentMethodWaffoPancake {
@@ -75,7 +102,7 @@ func GetTopUpInfo(c *gin.Context) {
 
 	// 如果启用了 Waffo 支付，添加到支付方法列表
 	enableWaffo := isWaffoTopUpEnabled()
-	if enableWaffo {
+	if enableWaffo && !operation_setting.HasPayMethod(model.PaymentMethodWaffo) {
 		hasWaffo := false
 		for _, method := range payMethods {
 			if method["type"] == model.PaymentMethodWaffo {
@@ -129,7 +156,8 @@ type EpayRequest struct {
 }
 
 type AmountRequest struct {
-	Amount int64 `json:"amount"`
+	Amount        int64  `json:"amount"`
+	PaymentMethod string `json:"payment_method"`
 }
 
 func GetEpayClient() *epay.Client {
@@ -193,8 +221,13 @@ func RequestEpay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
 		return
 	}
-	if req.Amount < getMinTopup() {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getMinTopup())})
+	if isXunhuPayMethod(req.PaymentMethod) {
+		RequestXunhuPay(c, req)
+		return
+	}
+	minTopup := getMinTopup()
+	if req.Amount < minTopup {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", minTopup)})
 		return
 	}
 
@@ -419,8 +452,12 @@ func RequestAmount(c *gin.Context) {
 		return
 	}
 
-	if req.Amount < getMinTopup() {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getMinTopup())})
+	minTopup := getMinTopup()
+	if isXunhuPayMethod(req.PaymentMethod) {
+		minTopup = getXunhuPayMinTopup(req.PaymentMethod)
+	}
+	if req.Amount < minTopup {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", minTopup)})
 		return
 	}
 	id := c.GetInt("id")

@@ -27,6 +27,7 @@ import { BillingHistoryDialog } from './components/dialogs/billing-history-dialo
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
+import { XunhuPayQRDialog } from './components/dialogs/xunhupay-qr-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
@@ -88,8 +89,10 @@ export function Wallet(props: WalletProps) {
     amount: paymentAmount,
     calculating,
     processing,
+    xunhuPayData,
     calculatePaymentAmount,
     processPayment,
+    setXunhuPayData,
   } = usePayment()
   const {
     affiliateLink,
@@ -359,6 +362,14 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleCreemConfirm}
         product={selectedCreemProduct}
         processing={creemProcessing}
+      />
+
+      <XunhuPayQRDialog
+        open={!!xunhuPayData}
+        onOpenChange={(open) => {
+          if (!open) setXunhuPayData(null)
+        }}
+        paymentData={xunhuPayData}
       />
     </>
   )

@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
@@ -45,33 +45,55 @@ const PAYMENT_TEMPLATES = [
   {
     name: 'Alipay',
     template: {
-      color: 'rgba(var(--semi-blue-5), 1)',
-      name: '支付宝',
+      color: '#1677FF',
+      enabled: true,
+      name: 'Alipay',
       type: 'alipay',
     },
   },
   {
     name: 'WeChat Pay',
     template: {
-      color: 'rgba(var(--semi-green-5), 1)',
-      name: '微信',
+      color: '#07C160',
+      enabled: true,
+      name: 'WeChat Pay',
       type: 'wxpay',
     },
   },
   {
     name: 'Stripe',
     template: {
-      color: 'rgba(var(--semi-green-5), 1)',
+      color: '#635BFF',
+      enabled: true,
       name: 'Stripe',
       type: 'stripe',
+    },
+  },
+  {
+    name: 'XunhuPay WeChat',
+    template: {
+      color: '#07C160',
+      enabled: true,
+      name: 'XunhuPay WeChat',
+      type: 'Xunhupay_Wechat',
+    },
+  },
+  {
+    name: 'XunhuPay Alipay',
+    template: {
+      color: '#1677FF',
+      enabled: true,
+      name: 'XunhuPay Alipay',
+      type: 'Xunhupay_Alipay',
     },
   },
   {
     name: 'Custom',
     template: {
       color: 'black',
+      enabled: true,
       min_topup: '50',
-      name: '自定义1',
+      name: 'Custom',
       type: 'custom1',
     },
   },
@@ -199,7 +221,7 @@ export function PaymentMethodsVisualEditor({
     )
 
     if (!exists) {
-      parsed.push(template)
+      parsed.push({ enabled: true, ...template })
       onChange(JSON.stringify(parsed, null, 2))
     }
   }
@@ -328,6 +350,21 @@ export function PaymentMethodsVisualEditor({
                 },
               },
               {
+                id: 'status',
+                header: t('Status'),
+                cell: (method) => (
+                  <span
+                    className={
+                      method.enabled === false
+                        ? 'text-muted-foreground text-sm'
+                        : 'text-sm text-emerald-600 dark:text-emerald-400'
+                    }
+                  >
+                    {method.enabled === false ? t('Disabled') : t('Enabled')}
+                  </span>
+                ),
+              },
+              {
                 id: 'min-top-up',
                 header: t('Min Top-up'),
                 cell: (method) =>
@@ -336,7 +373,7 @@ export function PaymentMethodsVisualEditor({
                       {method.min_topup}
                     </span>
                   ) : (
-                    <span className='text-muted-foreground text-sm'>—</span>
+                    <span className='text-muted-foreground text-sm'>-</span>
                   ),
               },
               {
@@ -432,6 +469,22 @@ export function PaymentMethodsVisualEditor({
                           {method.color}
                         </span>
                       </div>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-muted-foreground min-w-20'>
+                        {t('Status:')}
+                      </span>
+                      <span
+                        className={
+                          method.enabled === false
+                            ? 'text-muted-foreground'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        }
+                      >
+                        {method.enabled === false
+                          ? t('Disabled')
+                          : t('Enabled')}
+                      </span>
                     </div>
                     {method.min_topup && (
                       <div className='flex items-center gap-2'>

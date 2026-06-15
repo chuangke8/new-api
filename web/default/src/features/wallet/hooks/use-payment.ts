@@ -30,8 +30,10 @@ import {
 import {
   isStripePayment,
   isWaffoPancakePayment,
+  isXunhuPayPayment,
   submitPaymentForm,
 } from '../lib'
+import type { XunhuPayPaymentData } from '../types'
 
 // ============================================================================
 // Payment Hook
@@ -41,6 +43,9 @@ export function usePayment() {
   const [amount, setAmount] = useState<number>(0)
   const [calculating, setCalculating] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [xunhuPayData, setXunhuPayData] = useState<XunhuPayPaymentData | null>(
+    null
+  )
 
   // Calculate payment amount
   const calculatePaymentAmount = useCallback(
@@ -54,7 +59,10 @@ export function usePayment() {
           ? await calculateStripeAmount({ amount: topupAmount })
           : isPancake
             ? await calculateWaffoPancakeAmount({ amount: topupAmount })
-            : await calculateAmount({ amount: topupAmount })
+            : await calculateAmount({
+                amount: topupAmount,
+                payment_method: paymentType,
+              })
 
         if (isApiSuccess(response) && response.data) {
           const calculatedAmount = parseFloat(response.data)
@@ -99,6 +107,21 @@ export function usePayment() {
           return false
         }
 
+        if (isXunhuPayPayment(paymentType) && response.data) {
+          const data = response.data as unknown as XunhuPayPaymentData
+          if (data.qrcode_url || data.payment_url) {
+            setXunhuPayData({ ...data, payment_type: paymentType })
+            toast.success(i18next.t('Scan the QR code to complete payment'))
+            return true
+          }
+          toast.error(
+            i18next.t(
+              'Payment QR code is unavailable. Please check payment gateway configuration.'
+            )
+          )
+          return false
+        }
+
         // Handle Stripe payment
         if (isStripe && response.data?.pay_link) {
           window.open(response.data.pay_link as string, '_blank')
@@ -131,8 +154,10 @@ export function usePayment() {
     amount,
     calculating,
     processing,
+    xunhuPayData,
     calculatePaymentAmount,
     processPayment,
     setAmount,
+    setXunhuPayData,
   }
 }

@@ -100,6 +100,17 @@ export interface PaymentMethod {
   min_topup?: number
   /** Optional icon URL provided by backend (preferred over built-in icons) */
   icon?: string
+  /** Whether the payment method is enabled. Missing means enabled for compatibility. */
+  enabled?: boolean
+}
+
+export interface XunhuPayPaymentData {
+  trade_no: string
+  payment_url: string
+  qrcode_url: string
+  open_order_id?: string
+  amount?: string
+  payment_type?: string
 }
 
 /**
@@ -210,6 +221,8 @@ export interface WaffoPancakePaymentRequest {
 export interface AmountRequest {
   /** Topup amount to calculate */
   amount: number
+  /** Payment method identifier, used for method-specific validation */
+  payment_method?: string
 }
 
 /**

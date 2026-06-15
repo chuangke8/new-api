@@ -92,6 +92,13 @@ func InitOptionMap() {
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
 	common.OptionMap["StripePromotionCodesEnabled"] = strconv.FormatBool(setting.StripePromotionCodesEnabled)
+	common.OptionMap["XunhuPayGateway"] = setting.XunhuPayGateway
+	common.OptionMap["XunhuPayWechatAppID"] = setting.XunhuPayWechatAppID
+	common.OptionMap["XunhuPayWechatSecret"] = setting.XunhuPayWechatSecret
+	common.OptionMap["XunhuPayWechatMinTopUp"] = strconv.Itoa(setting.XunhuPayWechatMinTopUp)
+	common.OptionMap["XunhuPayAlipayAppID"] = setting.XunhuPayAlipayAppID
+	common.OptionMap["XunhuPayAlipaySecret"] = setting.XunhuPayAlipaySecret
+	common.OptionMap["XunhuPayAlipayMinTopUp"] = strconv.Itoa(setting.XunhuPayAlipayMinTopUp)
 	common.OptionMap["CreemApiKey"] = setting.CreemApiKey
 	common.OptionMap["CreemProducts"] = setting.CreemProducts
 	common.OptionMap["CreemTestMode"] = strconv.FormatBool(setting.CreemTestMode)
@@ -419,6 +426,20 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StripeMinTopUp, _ = strconv.Atoi(value)
 	case "StripePromotionCodesEnabled":
 		setting.StripePromotionCodesEnabled = value == "true"
+	case "XunhuPayGateway":
+		setting.XunhuPayGateway = value
+	case "XunhuPayWechatAppID":
+		setting.XunhuPayWechatAppID = value
+	case "XunhuPayWechatSecret":
+		setting.XunhuPayWechatSecret = value
+	case "XunhuPayWechatMinTopUp":
+		setting.XunhuPayWechatMinTopUp, _ = strconv.Atoi(value)
+	case "XunhuPayAlipayAppID":
+		setting.XunhuPayAlipayAppID = value
+	case "XunhuPayAlipaySecret":
+		setting.XunhuPayAlipaySecret = value
+	case "XunhuPayAlipayMinTopUp":
+		setting.XunhuPayAlipayMinTopUp, _ = strconv.Atoi(value)
 	case "CreemApiKey":
 		setting.CreemApiKey = value
 	case "CreemProducts":

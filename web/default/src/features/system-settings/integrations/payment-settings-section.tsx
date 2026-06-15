@@ -21,7 +21,7 @@ import * as z from 'zod'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Code2, Eye, ShieldAlert } from 'lucide-react'
+import { ChevronDown, Code2, Eye, ShieldAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -33,6 +33,11 @@ import {
 } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -42,7 +47,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { RiskAcknowledgementDialog } from '@/components/risk-acknowledgement-dialog'
@@ -130,6 +134,15 @@ const paymentSchema = z.object({
   StripeUnitPrice: z.coerce.number().min(0),
   StripeMinTopUp: z.coerce.number().min(0),
   StripePromotionCodesEnabled: z.boolean(),
+  XunhuPayGateway: z.string().refine((value) => {
+    const trimmed = value.trim()
+    if (!trimmed) return true
+    return /^https?:\/\//.test(trimmed)
+  }, 'Provide a valid URL starting with http:// or https://'),
+  XunhuPayWechatAppID: z.string(),
+  XunhuPayWechatSecret: z.string(),
+  XunhuPayAlipayAppID: z.string(),
+  XunhuPayAlipaySecret: z.string(),
   CreemApiKey: z.string(),
   CreemWebhookSecret: z.string(),
   CreemTestMode: z.boolean(),
@@ -186,6 +199,55 @@ type PaymentSettingsSectionProps = {
   complianceDefaults: PaymentComplianceDefaults
 }
 
+type PaymentGatewayPanelProps = {
+  title: string
+  description?: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  children: React.ReactNode
+}
+
+function PaymentGatewayPanel({
+  title,
+  description,
+  open,
+  onOpenChange,
+  children,
+}: PaymentGatewayPanelProps) {
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange}>
+      <div className='rounded-lg border bg-background'>
+        <CollapsibleTrigger
+          render={
+            <button
+              type='button'
+              className='flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/50'
+            />
+          }
+        >
+          <div className='min-w-0 space-y-1'>
+            <h3 className='text-base font-semibold'>{title}</h3>
+            {description ? (
+              <p className='text-muted-foreground text-sm'>{description}</p>
+            ) : null}
+          </div>
+          <span className='border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex size-8 shrink-0 items-center justify-center rounded-md border'>
+            <ChevronDown
+              className={cn(
+                'size-4 transition-transform',
+                open ? 'rotate-180' : 'rotate-0'
+              )}
+            />
+          </span>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className='space-y-4 border-t px-4 py-4'>{children}</div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  )
+}
+
 function parseWaffoPayMethods(value: string): PayMethod[] {
   try {
     const parsed = JSON.parse(value || '[]')
@@ -228,6 +290,16 @@ export function PaymentSettingsSection({
   const [creemProductsVisualMode, setCreemProductsVisualMode] =
     React.useState(true)
   const [showComplianceDialog, setShowComplianceDialog] = React.useState(false)
+  const [openPanels, setOpenPanels] = React.useState<Record<string, boolean>>({
+    general: true,
+    methods: true,
+    epay: false,
+    stripe: false,
+    xunhupay: false,
+    creem: false,
+    waffoPancake: false,
+    waffo: false,
+  })
   const [waffoPayMethods, setWaffoPayMethods] = React.useState<PayMethod[]>(
     () => parseWaffoPayMethods(waffoDefaultValues.WaffoPayMethods)
   )
@@ -254,6 +326,16 @@ export function PaymentSettingsSection({
     setWaffoPancakeSelection(nextBinding)
     setWaffoPancakeSavedBinding(nextBinding)
   }, [waffoPancakeProvisionedProductID, waffoPancakeProvisionedStoreID])
+
+  const setPanelOpen = React.useCallback(
+    (panel: string) => (open: boolean) => {
+      setOpenPanels((current) => ({
+        ...current,
+        [panel]: open,
+      }))
+    },
+    []
+  )
 
   const complianceStatements = React.useMemo(
     () => [
@@ -415,6 +497,11 @@ export function PaymentSettingsSection({
       StripeUnitPrice: values.StripeUnitPrice,
       StripeMinTopUp: values.StripeMinTopUp,
       StripePromotionCodesEnabled: values.StripePromotionCodesEnabled,
+      XunhuPayGateway: removeTrailingSlash(values.XunhuPayGateway.trim()),
+      XunhuPayWechatAppID: values.XunhuPayWechatAppID.trim(),
+      XunhuPayWechatSecret: values.XunhuPayWechatSecret.trim(),
+      XunhuPayAlipayAppID: values.XunhuPayAlipayAppID.trim(),
+      XunhuPayAlipaySecret: values.XunhuPayAlipaySecret.trim(),
       CreemApiKey: values.CreemApiKey.trim(),
       CreemWebhookSecret: values.CreemWebhookSecret.trim(),
       CreemTestMode: values.CreemTestMode,
@@ -460,6 +547,13 @@ export function PaymentSettingsSection({
       StripeMinTopUp: initialRef.current.StripeMinTopUp,
       StripePromotionCodesEnabled:
         initialRef.current.StripePromotionCodesEnabled,
+      XunhuPayGateway: removeTrailingSlash(
+        initialRef.current.XunhuPayGateway.trim()
+      ),
+      XunhuPayWechatAppID: initialRef.current.XunhuPayWechatAppID.trim(),
+      XunhuPayWechatSecret: initialRef.current.XunhuPayWechatSecret.trim(),
+      XunhuPayAlipayAppID: initialRef.current.XunhuPayAlipayAppID.trim(),
+      XunhuPayAlipaySecret: initialRef.current.XunhuPayAlipaySecret.trim(),
       CreemApiKey: initialRef.current.CreemApiKey.trim(),
       CreemWebhookSecret: initialRef.current.CreemWebhookSecret.trim(),
       CreemTestMode: initialRef.current.CreemTestMode,
@@ -580,6 +674,44 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'StripePromotionCodesEnabled',
         value: sanitized.StripePromotionCodesEnabled,
+      })
+    }
+
+    if (sanitized.XunhuPayGateway !== initial.XunhuPayGateway) {
+      updates.push({ key: 'XunhuPayGateway', value: sanitized.XunhuPayGateway })
+    }
+
+    if (sanitized.XunhuPayWechatAppID !== initial.XunhuPayWechatAppID) {
+      updates.push({
+        key: 'XunhuPayWechatAppID',
+        value: sanitized.XunhuPayWechatAppID,
+      })
+    }
+
+    if (
+      sanitized.XunhuPayWechatSecret &&
+      sanitized.XunhuPayWechatSecret !== initial.XunhuPayWechatSecret
+    ) {
+      updates.push({
+        key: 'XunhuPayWechatSecret',
+        value: sanitized.XunhuPayWechatSecret,
+      })
+    }
+
+    if (sanitized.XunhuPayAlipayAppID !== initial.XunhuPayAlipayAppID) {
+      updates.push({
+        key: 'XunhuPayAlipayAppID',
+        value: sanitized.XunhuPayAlipayAppID,
+      })
+    }
+
+    if (
+      sanitized.XunhuPayAlipaySecret &&
+      sanitized.XunhuPayAlipaySecret !== initial.XunhuPayAlipaySecret
+    ) {
+      updates.push({
+        key: 'XunhuPayAlipaySecret',
+        value: sanitized.XunhuPayAlipaySecret,
       })
     }
 
@@ -857,14 +989,12 @@ export function PaymentSettingsSection({
             isSaving={updateOption.isPending || isSubmitting}
             saveLabel='Save all settings'
           />
-          <div className='space-y-4'>
-            <div>
-              <h3 className='text-lg font-medium'>{t('General Settings')}</h3>
-              <p className='text-muted-foreground text-sm'>
-                {t('Shared configuration for all payment gateways')}
-              </p>
-            </div>
-
+          <PaymentGatewayPanel
+            title={t('General Settings')}
+            description={t('Shared configuration for all payment gateways')}
+            open={openPanels.general}
+            onOpenChange={setPanelOpen('general')}
+          >
             <div className='grid gap-6 md:grid-cols-2'>
               <FormField
                 control={form.control}
@@ -913,6 +1043,14 @@ export function PaymentSettingsSection({
               />
             </div>
 
+          </PaymentGatewayPanel>
+
+          <PaymentGatewayPanel
+            title={t('Payment methods')}
+            description={t('Manage visible payment methods and enable switches')}
+            open={openPanels.methods}
+            onOpenChange={setPanelOpen('methods')}
+          >
             <FormField
               control={form.control}
               name='PayMethods'
@@ -951,9 +1089,7 @@ export function PaymentSettingsSection({
                     ) : (
                       <Textarea
                         rows={4}
-                        placeholder={t(
-                          '[{"name":"支付宝","type":"alipay","color":"#1677FF"}]'
-                        )}
+                        placeholder='[{"name":"Alipay","type":"alipay","color":"#1677FF","enabled":true}]'
                         {...field}
                         onChange={(event) => field.onChange(event.target.value)}
                       />
@@ -969,6 +1105,14 @@ export function PaymentSettingsSection({
               )}
             />
 
+          </PaymentGatewayPanel>
+
+          <PaymentGatewayPanel
+            title={t('Top-up amount rules')}
+            description={t('Configure recharge amount presets and discounts')}
+            open={openPanels.amounts}
+            onOpenChange={setPanelOpen('amounts')}
+          >
             <div className='grid gap-6 md:grid-cols-2 md:items-start'>
               <FormField
                 control={form.control}
@@ -1078,18 +1222,14 @@ export function PaymentSettingsSection({
                 )}
               />
             </div>
-          </div>
+          </PaymentGatewayPanel>
 
-          <Separator />
-
-          <div className='space-y-4'>
-            <div>
-              <h3 className='text-lg font-medium'>{t('Epay Gateway')}</h3>
-              <p className='text-muted-foreground text-sm'>
-                {t('Configuration for Epay payment integration')}
-              </p>
-            </div>
-
+          <PaymentGatewayPanel
+            title={t('Epay Gateway')}
+            description={t('Configuration for Epay payment integration')}
+            open={openPanels.epay}
+            onOpenChange={setPanelOpen('epay')}
+          >
             <div className='grid gap-6 md:grid-cols-2'>
               <FormField
                 control={form.control}
@@ -1179,51 +1319,14 @@ export function PaymentSettingsSection({
                 )}
               />
             </div>
-          </div>
+          </PaymentGatewayPanel>
 
-          <Separator />
-
-          <div className='space-y-4'>
-            <div>
-              <h3 className='text-lg font-medium'>{t('Stripe Gateway')}</h3>
-              <p className='text-muted-foreground text-sm'>
-                {t('Configuration for Stripe payment integration')}
-              </p>
-            </div>
-
-            <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
-              <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
-              <ul className='list-inside list-disc space-y-1'>
-                <li>
-                  {t('Webhook URL:')}{' '}
-                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
-                    {'<ServerAddress>/api/stripe/webhook'}
-                  </code>
-                </li>
-                <li>
-                  {t('Required events:')}{' '}
-                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
-                    {t('checkout.session.completed')}
-                  </code>{' '}
-                  {t('and')}{' '}
-                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
-                    {t('checkout.session.expired')}
-                  </code>
-                </li>
-                <li>
-                  {t('Configure at:')}{' '}
-                  <a
-                    href='https://dashboard.stripe.com/developers'
-                    target='_blank'
-                    rel='noreferrer'
-                    className='underline hover:no-underline'
-                  >
-                    {t('Stripe Dashboard')}
-                  </a>
-                </li>
-              </ul>
-            </div>
-
+          <PaymentGatewayPanel
+            title={t('Stripe Gateway')}
+            description={t('Configuration for Stripe payment integration')}
+            open={openPanels.stripe}
+            onOpenChange={setPanelOpen('stripe')}
+          >
             <div className='grid gap-6 md:grid-cols-3'>
               <FormField
                 control={form.control}
@@ -1363,31 +1466,152 @@ export function PaymentSettingsSection({
                 )}
               />
             </div>
-          </div>
+          </PaymentGatewayPanel>
 
-          <Separator />
+          <PaymentGatewayPanel
+            title={t('XunhuPay Gateway')}
+            description={t(
+              'Configure XunhuPay WeChat and Alipay channels. Enable or disable them in Payment methods.'
+            )}
+            open={openPanels.xunhupay}
+            onOpenChange={setPanelOpen('xunhupay')}
+          >
+            <FormField
+              control={form.control}
+              name='XunhuPayGateway'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('XunhuPay gateway endpoint')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('https://api.xunhupay.com')}
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Use the actual gateway shown in your XunhuPay payment channel.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <div className='space-y-4'>
-            <div>
-              <h3 className='text-lg font-medium'>{t('Creem Gateway')}</h3>
-              <p className='text-muted-foreground text-sm'>
-                {t('Configuration for Creem payment integration')}
-              </p>
+            <div className='grid gap-6 lg:grid-cols-2'>
+              <div className='space-y-4 rounded-lg border p-4'>
+                <div>
+                  <h4 className='font-medium'>{t('XunhuPay WeChat')}</h4>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Payment method type: Xunhupay_Wechat')}
+                  </p>
+                </div>
+                <FormField
+                  control={form.control}
+                  name='XunhuPayWechatAppID'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('App ID')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          autoComplete='off'
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='XunhuPayWechatSecret'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Secret key')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t('Enter new key to update')}
+                          autoComplete='new-password'
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Leave blank unless rotating the secret')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className='space-y-4 rounded-lg border p-4'>
+                <div>
+                  <h4 className='font-medium'>{t('XunhuPay Alipay')}</h4>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Payment method type: Xunhupay_Alipay')}
+                  </p>
+                </div>
+                <FormField
+                  control={form.control}
+                  name='XunhuPayAlipayAppID'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('App ID')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          autoComplete='off'
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='XunhuPayAlipaySecret'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Secret key')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t('Enter new key to update')}
+                          autoComplete='new-password'
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Leave blank unless rotating the secret')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
+          </PaymentGatewayPanel>
 
-            <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
-              <p className='mb-2 font-medium'>{t('Webhook Configuration:')}</p>
-              <ul className='list-inside list-disc space-y-1'>
-                <li>
-                  {t('Webhook URL:')}{' '}
-                  <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
-                    {'<ServerAddress>/api/creem/webhook'}
-                  </code>
-                </li>
-                <li>{t('Configure in your Creem dashboard')}</li>
-              </ul>
-            </div>
-
+          <PaymentGatewayPanel
+            title={t('Creem Gateway')}
+            description={t('Configuration for Creem payment integration')}
+            open={openPanels.creem}
+            onOpenChange={setPanelOpen('creem')}
+          >
             <div className='grid gap-6 md:grid-cols-2'>
               <FormField
                 control={form.control}
@@ -1510,11 +1734,15 @@ export function PaymentSettingsSection({
                 </FormItem>
               )}
             />
-          </div>
+          </PaymentGatewayPanel>
 
-          <Separator />
-
-          <WaffoPancakeSettingsSection
+          <PaymentGatewayPanel
+            title={t('Waffo Pancake Gateway')}
+            description={t('Configuration for Waffo Pancake payment integration')}
+            open={openPanels.waffoPancake}
+            onOpenChange={setPanelOpen('waffoPancake')}
+          >
+            <WaffoPancakeSettingsSection
             defaultValues={waffoPancakeDefaultValues}
             values={waffoPancakeValues}
             onValueChange={setWaffoPancakeValue}
@@ -1522,15 +1750,21 @@ export function PaymentSettingsSection({
             savedBinding={waffoPancakeSavedBinding}
             onSelectedBindingChange={setWaffoPancakeSelection}
           />
+          </PaymentGatewayPanel>
 
-          <Separator />
-
-          <WaffoSettingsSection
+          <PaymentGatewayPanel
+            title={t('Waffo Gateway')}
+            description={t('Configuration for Waffo payment integration')}
+            open={openPanels.waffo}
+            onOpenChange={setPanelOpen('waffo')}
+          >
+            <WaffoSettingsSection
             values={waffoValues}
             onValueChange={setWaffoValue}
             payMethods={waffoPayMethods}
             onPayMethodsChange={setWaffoPayMethods}
           />
+          </PaymentGatewayPanel>
         </SettingsForm>
       </Form>
     </SettingsSection>
